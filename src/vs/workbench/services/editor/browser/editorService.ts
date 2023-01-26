@@ -33,6 +33,8 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { addExplainer } from 'vs/workbench/services/editor/browser/explainerTest';
+//import * as vscode from 'vscode';
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -110,6 +112,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Register listeners to each opened group
 		for (const group of this.editorGroupService.groups) {
+			addExplainer();
 			this.registerGroupListeners(group as IEditorGroupView);
 		}
 
@@ -165,6 +168,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		Event.once(group.onWillDispose)(() => {
 			dispose(groupDisposables);
 		});
+
 	}
 
 	//#endregion
