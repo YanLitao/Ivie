@@ -1,13 +1,16 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
+import { OpenaiFetchAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
 
 export function addExplainer() {
 	console.log("added explainer");
 }
 
 function diffText(textA: string, textB: string) {
-	var diff = "";
+	var diff = "",
+		startLine = 0,
+		startFlag = false;
 	var text1 = textA.split("\n"),
 		text2 = textB.split("\n"),
 		startIdx = 0;
@@ -22,9 +25,13 @@ function diffText(textA: string, textB: string) {
 		}
 		if (flag === false) {
 			diff += text1[i] + "\n";
+			if (startFlag === false) {
+				startLine = i;
+				startFlag = true;
+			}
 		}
 	}
-	return diff;
+	return { diff, startLine };
 }
 
 export class Explainer {
@@ -48,7 +55,7 @@ export class Explainer {
 		this._posttext = this._editor.getValue();
 		var diffed = diffText(this._posttext, this._pretext);
 		console.log(diffed);
-		if (diffed.split("\n").length > 3) {
+		if (diffed["diff"].split("\n").length > 3) {
 			const editor_div = this._editor.getDomNode();
 			if (editor_div === null) {
 				throw new Error('Cannot find Monaco Editor');
@@ -64,11 +71,20 @@ export class Explainer {
 			this._box.style.height = 'auto';
 			this._box.style.width = '500px';
 			this._box.style.backgroundColor = 'rgba(10, 10, 10, 0.2)';
-			this._box.innerText = 'Hello World';
 			this._box.id = "explainer_container";
 			this._box.style.zIndex = '100';
+			editor_div.appendChild(this._box);
 			var parent = editor_div.getElementsByClassName("lines-content monaco-editor-background")
-			parent[0].appendChild(this._box);
+			//parent[0].appendChild(this._box);
+
+			async function getExplain(div: HTMLDivElement, text: string, lineHeight: number, startLine: number, totalLine: number) {
+				await OpenaiFetchAPI(text, 3, lineHeight, startLine, div);
+			}
+			//const config = vscode.workspace.getConfiguration();
+			//console.log("lineHeight",config.get("lineHeight"));
+			var lineHeight = 18;
+			var totalLine = this._posttext.split("\n").length;
+			getExplain(this._box, diffed["diff"], lineHeight, diffed["startLine"], totalLine);
 			console.log(parent);
 		}
 	}
