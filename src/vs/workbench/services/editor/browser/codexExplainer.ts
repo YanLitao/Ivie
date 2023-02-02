@@ -122,7 +122,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
-			"model": "text-davinci-003",
+			"model": "text-cushman-001",
 			"prompt": promptSummary,
 			"max_tokens": 1000,
 			"temperature": 0.5,
@@ -137,6 +137,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 		var explainArr = data['choices'][0].text.split("\n*"),
 			summaryArr: [number, number, string][] = [],
 			lastLine = 0;
+		console.log(explainArr);
 		var codeLine = code.split("\n").length;
 		var regExp = /[a-zA-Z]/g;
 		for (const e of explainArr) {
