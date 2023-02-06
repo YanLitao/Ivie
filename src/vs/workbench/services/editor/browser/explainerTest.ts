@@ -7,10 +7,38 @@ export function addExplainer() {
 	console.log("added explainer");
 }
 
+const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } | undefined => {
+	if (!arr.length) return undefined;
+	const s = [...arr].sort((a, b) => a - b);
+	const mid = Math.floor(s.length / 2);
+	const median = s.length % 2 === 0 ? ((s[mid - 1] + s[mid]) / 2) : s[mid];
+	const mean = s.reduce((a, b) => a + b) / s.length;
+	const min = s[0];
+	const max = s[s.length - 1];
+	return { median, mean, min, max };
+};
+
+function getStartPos(lengthArray: number[]) {
+	var lines = staticsLength(lengthArray);
+	if (lines === undefined) {
+		return 400;
+	}
+	var median = lines.median,
+		max = lines.max;
+	if (max >= 60 && median >= 60) {
+		return 360;
+	} else if (max >= 60 && median < 60) {
+		return median * 10;
+	} else {
+		return max * 7;
+	}
+}
+
 function diffText(textA: string, textB: string) {
 	var diff = "",
 		startLine = 0,
-		startFlag = false;
+		startFlag = false,
+		lineLength = [];
 	var text1 = textA.split("\n"),
 		text2 = textB.split("\n"),
 		startIdx = 0;
@@ -25,13 +53,14 @@ function diffText(textA: string, textB: string) {
 		}
 		if (flag === false) {
 			diff += text1[i] + "\n";
+			lineLength.push(text1[i].length);
 			if (startFlag === false) {
 				startLine = i + 1;
 				startFlag = true;
 			}
 		}
 	}
-	return { diff, startLine };
+	return { diff, startLine, lineLength };
 }
 
 export class Explainer {
@@ -63,17 +92,23 @@ export class Explainer {
 				return;
 			}
 
+			var explainStart = getStartPos(diffed.lineLength);
+
+			var editorWidth = Number(editor_div.style.width.replace("px", ""));
+
+			var explainWidth = editorWidth - explainStart;
+
 			var lineHeight = 18,
 				totalLine = this._posttext.split("\n").length,
-				generateLine = diffed["diff"].split("\n").length;
+				generateLine = diffed["diff"].split("\n").length - 1;
 
 			this._box = document.createElement('div');
 			this._box.style.position = 'absolute';
 			this._box.style.top = (diffed["startLine"] - 2) * lineHeight + 22 + 'px'; // offset from the run button + border + padding
 			this._box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
-			this._box.style.left = '300px';
+			this._box.style.left = explainStart + 'px';
 			this._box.style.height = generateLine * lineHeight + 'px';
-			this._box.style.width = '600px';
+			this._box.style.width = explainWidth + 'px';
 			//this._box.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
 			this._box.id = "explainer_container";
 			this._box.style.zIndex = '100';
@@ -84,11 +119,10 @@ export class Explainer {
 			border_div.style.backgroundImage = 'linear-gradient(to right, rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
 			this._box.appendChild(border_div);
 			var content_div = document.createElement('div');
-			content_div.style.width = '580px';
+			content_div.style.width = explainWidth - 20 + 'px';
 			content_div.style.height = generateLine * lineHeight + 'px';
 			content_div.style.float = 'right';
 			content_div.style.backgroundColor = 'rgba(60, 60, 60, 1)';
-			content_div.style.borderLeft = '2px solid white';
 			content_div.style.boxSizing = 'border-box';
 			this._box.appendChild(content_div);
 			//editor_div.appendChild(this._box);
@@ -96,7 +130,7 @@ export class Explainer {
 			//parent[0].appendChild(this._box);
 
 			async function getExplain(div: HTMLDivElement, text: string, lineHeight: number, startLine: number, totalLine: number) {
-				await OpenaiFetchAPI(text, 3, lineHeight, startLine, div);
+				await OpenaiFetchAPI(text, 3, lineHeight, div);
 			}
 			//const config = vscode.workspace.getConfiguration();
 			//console.log("lineHeight",config.get("lineHeight"));

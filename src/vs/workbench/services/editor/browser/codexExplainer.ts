@@ -4,19 +4,20 @@ function createBendDiv(height: number, marginTop: number, text: string) {
 	newBend.style.height = String(height) + 'px';
 	newBend.style.lineHeight = String(height) + 'px';
 	newBend.style.marginTop = String(marginTop) + 'px';
-	newBend.style.backgroundColor = 'blue';
+	newBend.style.backgroundColor = 'rgb(132,194,214,0.2)';
+	newBend.style.borderLeft = '2px solid white';
+	newBend.style.boxSizing = 'border-box';
 	newBend.innerText = text;
 	return newBend;
 }
 
-export function drawBends(div: HTMLDivElement, bends: [number, number, string][], lineHeight: number, startLine: number) {
-	var whiteSpace = 2,
-		crumbHeight = 22;
+export function drawBends(div: HTMLDivElement, bends: [number, number, string][], lineHeight: number) {
+	var whiteSpace = 2;
 	for (var i = 0; i < bends.length; i++) {
 		var heigh = (bends[i][1] - bends[i][0] + 1) * lineHeight - whiteSpace;
 		if (i == 0) {
 			// first bend
-			var marginTop = (bends[0][0] + startLine - 2) * lineHeight + crumbHeight;
+			var marginTop = (bends[0][0] - 1) * lineHeight;
 		} else {
 			var marginTop = (bends[i][0] - bends[i - 1][1] - 1) * lineHeight + whiteSpace;
 		}
@@ -97,7 +98,7 @@ export function matchLongText(text: string, longText: string) {
 } */
 
 
-export async function OpenaiFetchAPI(code: string, numberSections: number, lineHeight: number, startLine: number, div: HTMLDivElement) {
+export async function OpenaiFetchAPI(code: string, numberSections: number, lineHeight: number, div: HTMLDivElement) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
 	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with *).\n" +
@@ -114,7 +115,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
 		"Prompt: \n";
 	var promptSummary = prompt + code + "\nOutput:";
-	//console.log(promptSummary);
+	console.log(promptSummary);
 	let returnSum = await fetch(url, {
 		method: 'POST',
 		headers: {
@@ -122,7 +123,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
-			"model": "text-cushman-001",
+			"model": "text-curie-001",
 			"prompt": promptSummary,
 			"max_tokens": 1000,
 			"temperature": 0.5,
@@ -167,7 +168,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 			}
 		}
 		console.log(summaryArr);
-		drawBends(div, summaryArr, lineHeight, startLine);
+		drawBends(div, summaryArr, lineHeight);
 	}).catch(error => {
 		console.log('Cannot successfully generate the summaries for the code: ' + error)
 	});
