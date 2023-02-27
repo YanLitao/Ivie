@@ -2,6 +2,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
+import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { observableFromEvent } from 'vs/base/common/observable';
 
 export function addExplainer() {
 	console.log("added explainer");
@@ -69,11 +71,28 @@ export class Explainer {
 		private readonly _editor: ICodeEditor,
 		private _box: HTMLDivElement,
 		private _posttext: string,
-		private _pretext: string
+		private _pretext: string,
+		private _ghostTextController: GhostTextController | null
 	) {
 		this._editor.onKeyDown((e) => { this.onKeyDown(e); });
 		this._editor.onKeyUp((e) => { this.onKeyUp(e); });
 		this._editor.onDidDispose(() => { this.dispose(); });
+		this._ghostTextController = GhostTextController.get(this._editor);
+		if (this._ghostTextController == null) {
+			return;
+		} else {
+			console.log(this._ghostTextController);
+			console.log(this._ghostTextController.editor);
+			if (this._ghostTextController !== undefined) {
+				const activeModel = this._ghostTextController.activeModel;
+				if (activeModel !== undefined) {
+					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.ghostText) })
+					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.filteredCompletions) })
+				}
+			}
+			// this._ghostTextController.onActiveModelDidChange(() => { this.ghostTextChange(); });
+			this._ghostTextController.onActiveModelDidChange(console.log);
+		}
 	}
 
 	private onKeyDown(e: IKeyboardEvent) {
@@ -91,7 +110,10 @@ export class Explainer {
 			if (document.getElementById("explainer_container") !== null) {
 				return;
 			}
-
+			var last_explain = document.getElementById("explainer_container");
+			if (last_explain !== null) {
+				last_explain.remove();
+			}
 			var explainStart = getStartPos(diffed.lineLength);
 
 			var editorWidth = Number(editor_div.style.width.replace("px", ""));
@@ -127,7 +149,16 @@ export class Explainer {
 			this._box.appendChild(content_div);
 			//editor_div.appendChild(this._box);
 			var parent = editor_div.getElementsByClassName("lines-content monaco-editor-background");
-			//parent[0].appendChild(this._box);
+
+
+			//Find logDiv
+			var partEditor = editor_div.closest(".part.editor");
+			var splitViewContainer = partEditor?.parentElement?.parentElement;
+			var splitView = splitViewContainer?.getElementsByClassName("split-view-view visible");
+			var trueSplitView = splitView?.item(3);
+			var logDiv = trueSplitView?.querySelector(".view-lines.monaco-mouse-cursor-text");
+			console.log(logDiv);
+
 
 			async function getExplain(div: HTMLDivElement, text: string, lineHeight: number, startLine: number, totalLine: number) {
 				await OpenaiFetchAPI(text, 3, lineHeight, div);
@@ -137,6 +168,19 @@ export class Explainer {
 			getExplain(content_div, diffed["diff"], lineHeight, diffed["startLine"], totalLine);
 			parent[0].insertBefore(this._box, parent[0].firstChild);
 		}
+	}
+
+	private ghostTextChange() {
+		const activeModel = this._ghostTextController?.activeModel;
+		const activeGhostText =
+			activeModel
+				? observableFromEvent(
+					activeModel.inlineCompletionsModel.onDidChange,
+					() => /** @description activeModel.inlineCompletionsModel.onDidChange */ activeModel.inlineCompletionsModel.ghostText
+				)
+				: undefined
+			;
+		console.log(activeGhostText);
 	}
 
 	public dispose(): void {

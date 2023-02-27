@@ -123,7 +123,7 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
-			"model": "text-curie-001",
+			"model": "text-davinci-003",//davinci:ft-personal-2023-02-12-20-22-59
 			"prompt": promptSummary,
 			"max_tokens": 1000,
 			"temperature": 0.5,
