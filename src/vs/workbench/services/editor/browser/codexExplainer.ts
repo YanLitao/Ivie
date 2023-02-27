@@ -23,7 +23,6 @@ export function drawBends(div: HTMLDivElement, bends: [number, number, string][]
 		}
 		var text = bends[i][2];
 		var newBend = createBendDiv(heigh, marginTop, text);
-		console.log(newBend);
 		div.appendChild(newBend);
 	}
 }

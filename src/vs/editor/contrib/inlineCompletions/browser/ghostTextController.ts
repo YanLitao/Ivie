@@ -60,7 +60,6 @@ export class GhostTextController extends Disposable {
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
-		console.log("updateModelController");
 		this.activeController.value = undefined;
 		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
 		this.activeController.value =
@@ -159,10 +158,8 @@ export class ActiveGhostTextController extends Disposable {
 
 		let startsWithIndentation = false;
 		let startsWithIndentationLessThanTabSize = true;
-		console.log("updateContextKeys");
 
 		const ghostText = this.model.inlineCompletionsModel.ghostText;
-		console.log(ghostText);
 		if (!!this.model.activeInlineCompletionsModel && ghostText && ghostText.parts.length > 0) {
 			const { column, lines } = ghostText.parts[0];
 
@@ -209,7 +206,6 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
 			controller.showNextInlineCompletion();
-			console.log("ShowNextInlineSuggestionAction");
 			editor.focus();
 		}
 	}
@@ -233,7 +229,6 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
-			console.log("ShowPreviousInlineSuggestionAction");
 			controller.showPreviousInlineCompletion();
 			editor.focus();
 		}
@@ -252,7 +247,6 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
-		console.log("TriggerInlineSuggestionAction");
 		controller?.trigger();
 	}
 }
@@ -270,7 +264,6 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
-			console.log("AcceptNextWordOfInlineCompletion");
 			controller.commitPartially();
 		}
 	}

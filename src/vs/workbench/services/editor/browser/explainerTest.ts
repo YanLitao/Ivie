@@ -81,13 +81,12 @@ export class Explainer {
 		if (this._ghostTextController == null) {
 			return;
 		} else {
-			console.log(this._ghostTextController);
-			console.log(this._ghostTextController.editor);
+			//console.log(this._ghostTextController);
+			//console.log(this._ghostTextController.editor);
 			if (this._ghostTextController !== undefined) {
 				const activeModel = this._ghostTextController.activeModel;
 				if (activeModel !== undefined) {
-					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.ghostText) })
-					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.filteredCompletions) })
+					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.ghostText?.parts[0].lines) })
 				}
 			}
 			// this._ghostTextController.onActiveModelDidChange(() => { this.ghostTextChange(); });
@@ -114,10 +113,10 @@ export class Explainer {
 			if (last_explain !== null) {
 				last_explain.remove();
 			}
+			var parent = editor_div.getElementsByClassName("lines-content monaco-editor-background");
+			var trueVisableEditor = parent[0].parentElement;
 			var explainStart = getStartPos(diffed.lineLength);
-
-			var editorWidth = Number(editor_div.style.width.replace("px", ""));
-
+			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
 
 			var lineHeight = 18,
@@ -130,34 +129,43 @@ export class Explainer {
 			this._box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
 			this._box.style.left = explainStart + 'px';
 			this._box.style.height = generateLine * lineHeight + 'px';
-			this._box.style.width = explainWidth + 'px';
+			//this._box.style.width = explainWidth + 'px';
 			//this._box.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
 			this._box.id = "explainer_container";
 			this._box.style.zIndex = '100';
 			var border_div = document.createElement('div');
 			border_div.style.float = 'left';
-			border_div.style.width = '20px';
+			border_div.style.width = '30px';
 			border_div.style.height = generateLine * lineHeight + 'px';
 			border_div.style.backgroundImage = 'linear-gradient(to right, rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
 			this._box.appendChild(border_div);
 			var content_div = document.createElement('div');
-			content_div.style.width = explainWidth - 20 + 'px';
+			content_div.style.width = explainWidth - 30 + 'px';
 			content_div.style.height = generateLine * lineHeight + 'px';
 			content_div.style.float = 'right';
 			content_div.style.backgroundColor = 'rgba(60, 60, 60, 1)';
 			content_div.style.boxSizing = 'border-box';
+			content_div.style.display = 'block';
 			this._box.appendChild(content_div);
+			border_div.addEventListener('click', function (this) {
+				if (this.parentElement) {
+					if (content_div.style.display == 'none') {
+						content_div.style.display = 'block';
+						this.parentElement.style.left = explainStart + 'px';
+					} else {
+						this.parentElement.style.left = editorWidth - 30 + 'px';
+						content_div.style.display = 'none';
+					}
+				}
+			});
 			//editor_div.appendChild(this._box);
-			var parent = editor_div.getElementsByClassName("lines-content monaco-editor-background");
-
-
 			//Find logDiv
-			var partEditor = editor_div.closest(".part.editor");
+			/* var partEditor = editor_div.closest(".part.editor");
 			var splitViewContainer = partEditor?.parentElement?.parentElement;
 			var splitView = splitViewContainer?.getElementsByClassName("split-view-view visible");
 			var trueSplitView = splitView?.item(3);
 			var logDiv = trueSplitView?.querySelector(".view-lines.monaco-mouse-cursor-text");
-			console.log(logDiv);
+			console.log(logDiv); */
 
 
 			async function getExplain(div: HTMLDivElement, text: string, lineHeight: number, startLine: number, totalLine: number) {
@@ -170,18 +178,6 @@ export class Explainer {
 		}
 	}
 
-	private ghostTextChange() {
-		const activeModel = this._ghostTextController?.activeModel;
-		const activeGhostText =
-			activeModel
-				? observableFromEvent(
-					activeModel.inlineCompletionsModel.onDidChange,
-					() => /** @description activeModel.inlineCompletionsModel.onDidChange */ activeModel.inlineCompletionsModel.ghostText
-				)
-				: undefined
-			;
-		console.log(activeGhostText);
-	}
 
 	public dispose(): void {
 		console.log("disposed");
