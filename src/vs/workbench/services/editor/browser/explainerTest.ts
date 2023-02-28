@@ -1,9 +1,7 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { OpenaiFetchAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
+import { OpenaiFetchAPI, drawBends } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-import { observableFromEvent } from 'vs/base/common/observable';
 
 export function addExplainer() {
 	console.log("added explainer");
@@ -20,7 +18,11 @@ const staticsLength = (arr: number[]): { median: number; mean: number; min: numb
 	return { median, mean, min, max };
 };
 
-function getStartPos(lengthArray: number[]) {
+function getStartPos(textArray: string[]) {
+	var lengthArray = [];
+	for (var i = 0; i < textArray.length; i++) {
+		lengthArray.push(textArray[i].length);
+	}
 	var lines = staticsLength(lengthArray);
 	if (lines === undefined) {
 		return 400;
@@ -69,14 +71,16 @@ export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private _box: HTMLDivElement,
+		private box: HTMLDivElement,
 		private _posttext: string,
 		private _pretext: string,
-		private _ghostTextController: GhostTextController | null
+		private _ghostTextController: GhostTextController | null,
+		private _summaryArr: Promise<void | [number, number, string][]>,
 	) {
-		this._editor.onKeyDown((e) => { this.onKeyDown(e); });
-		this._editor.onKeyUp((e) => { this.onKeyUp(e); });
+		this._editor.onKeyDown((e) => { this.onKeyDown(); });
+		this._editor.onKeyUp((e) => { this.onKeyUp(); });
 		this._editor.onDidDispose(() => { this.dispose(); });
+		this._editor.onMouseDown(() => { this.onMouseDown(); });
 		this._ghostTextController = GhostTextController.get(this._editor);
 		if (this._ghostTextController == null) {
 			return;
@@ -86,7 +90,7 @@ export class Explainer {
 			if (this._ghostTextController !== undefined) {
 				const activeModel = this._ghostTextController.activeModel;
 				if (activeModel !== undefined) {
-					activeModel.onDidChange(function () { console.log("Try again 3", activeModel.inlineCompletionsModel.ghostText?.parts[0].lines) })
+					activeModel.onDidChange(() => { this.ghostTextChange() });
 				}
 			}
 			// this._ghostTextController.onActiveModelDidChange(() => { this.ghostTextChange(); });
@@ -94,51 +98,73 @@ export class Explainer {
 		}
 	}
 
-	private onKeyDown(e: IKeyboardEvent) {
+	private disposeExplanations() {
+		var last_explain = document.getElementsByClassName("explainer-container");
+		for (var i = 0; i < last_explain.length; i++) {
+			last_explain[i].remove();
+		}
+	}
+
+	private onMouseDown() {
+		var mousePos = this._editor.getPosition();
+		console.log(mousePos);
+	}
+
+	private ghostTextChange() {
+		const activeModel = this._ghostTextController?.activeModel;
+		var generatedCode = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines.join("\n");
+		if (generatedCode === undefined) {
+			return;
+		}
+		async function getExplain(text: string) {
+			var summaryArr = await OpenaiFetchAPI(text, 3);
+			return summaryArr;
+		}
+		this._summaryArr = getExplain(generatedCode);
+		console.log("generated code", generatedCode, this);
+	}
+
+	private onKeyDown() {
 		this._pretext = this._editor.getValue();
 	}
 
-	private onKeyUp(e: IKeyboardEvent) {
+	private onKeyUp() {
 		this._posttext = this._editor.getValue();
 		var diffed = diffText(this._posttext, this._pretext);
-		if (diffed["diff"].split("\n").length > 3) {
+		var eachLine = diffed["diff"].split("\n");
+		if (eachLine.length > 3) {
 			const editor_div = this._editor.getDomNode();
 			if (editor_div === null) {
 				throw new Error('Cannot find Monaco Editor');
 			}
-			if (document.getElementById("explainer_container") !== null) {
-				return;
-			}
-			var last_explain = document.getElementById("explainer_container");
-			if (last_explain !== null) {
-				last_explain.remove();
-			}
+			this.disposeExplanations();
 			var parent = editor_div.getElementsByClassName("lines-content monaco-editor-background");
 			var trueVisableEditor = parent[0].parentElement;
-			var explainStart = getStartPos(diffed.lineLength);
+
+			var lines = eachLine;
+			var explainStart = getStartPos(lines);
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
 
 			var lineHeight = 18,
-				totalLine = this._posttext.split("\n").length,
-				generateLine = diffed["diff"].split("\n").length - 1;
+				generateLine = lines.length - 1;
 
-			this._box = document.createElement('div');
-			this._box.style.position = 'absolute';
-			this._box.style.top = (diffed["startLine"] - 2) * lineHeight + 22 + 'px'; // offset from the run button + border + padding
-			this._box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
-			this._box.style.left = explainStart + 'px';
-			this._box.style.height = generateLine * lineHeight + 'px';
-			//this._box.style.width = explainWidth + 'px';
-			//this._box.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-			this._box.id = "explainer_container";
-			this._box.style.zIndex = '100';
+			var box = document.createElement('div');
+			box.style.position = 'absolute';
+			box.style.top = (diffed['startLine'] - 2) * lineHeight + 22 + 'px'; // offset from the run button + border + padding
+			box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
+			box.style.left = explainStart + 'px';
+			box.style.height = generateLine * lineHeight + 'px';
+			box.className = "explainer-container";
+			box.style.zIndex = '100';
+
 			var border_div = document.createElement('div');
 			border_div.style.float = 'left';
 			border_div.style.width = '30px';
 			border_div.style.height = generateLine * lineHeight + 'px';
 			border_div.style.backgroundImage = 'linear-gradient(to right, rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
-			this._box.appendChild(border_div);
+			box.appendChild(border_div);
+
 			var content_div = document.createElement('div');
 			content_div.style.width = explainWidth - 30 + 'px';
 			content_div.style.height = generateLine * lineHeight + 'px';
@@ -146,7 +172,7 @@ export class Explainer {
 			content_div.style.backgroundColor = 'rgba(60, 60, 60, 1)';
 			content_div.style.boxSizing = 'border-box';
 			content_div.style.display = 'block';
-			this._box.appendChild(content_div);
+			box.appendChild(content_div);
 			border_div.addEventListener('click', function (this) {
 				if (this.parentElement) {
 					if (content_div.style.display == 'none') {
@@ -158,23 +184,13 @@ export class Explainer {
 					}
 				}
 			});
-			//editor_div.appendChild(this._box);
-			//Find logDiv
-			/* var partEditor = editor_div.closest(".part.editor");
-			var splitViewContainer = partEditor?.parentElement?.parentElement;
-			var splitView = splitViewContainer?.getElementsByClassName("split-view-view visible");
-			var trueSplitView = splitView?.item(3);
-			var logDiv = trueSplitView?.querySelector(".view-lines.monaco-mouse-cursor-text");
-			console.log(logDiv); */
-
-
-			async function getExplain(div: HTMLDivElement, text: string, lineHeight: number, startLine: number, totalLine: number) {
-				await OpenaiFetchAPI(text, 3, lineHeight, div);
-			}
-			//const config = vscode.workspace.getConfiguration();
-			//console.log("lineHeight",config.get("lineHeight"));
-			getExplain(content_div, diffed["diff"], lineHeight, diffed["startLine"], totalLine);
-			parent[0].insertBefore(this._box, parent[0].firstChild);
+			this._summaryArr.then(function (value) {
+				if (value === undefined) {
+					return;
+				}
+				drawBends(content_div, value, lineHeight);
+			});
+			parent[0].insertBefore(box, parent[0].firstChild);
 		}
 	}
 
@@ -184,7 +200,7 @@ export class Explainer {
 		if (document.getElementById("explainer_container") !== null) {
 			return;
 		} else {
-			this._box.remove();
+			this.box.remove();
 		}
 	}
 }

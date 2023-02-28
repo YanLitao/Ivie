@@ -97,7 +97,7 @@ export function matchLongText(text: string, longText: string) {
 } */
 
 
-export async function OpenaiFetchAPI(code: string, numberSections: number, lineHeight: number, div: HTMLDivElement) {
+export async function OpenaiFetchAPI(code: string, numberSections: number) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
 	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with *).\n" +
@@ -137,7 +137,6 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 		var explainArr = data['choices'][0].text.split("\n*"),
 			summaryArr: [number, number, string][] = [],
 			lastLine = 0;
-		console.log(explainArr);
 		var codeLine = code.split("\n").length;
 		var regExp = /[a-zA-Z]/g;
 		for (const e of explainArr) {
@@ -167,7 +166,8 @@ export async function OpenaiFetchAPI(code: string, numberSections: number, lineH
 			}
 		}
 		console.log(summaryArr);
-		drawBends(div, summaryArr, lineHeight);
+		return summaryArr;
+		//drawBends(div, summaryArr, lineHeight);
 	}).catch(error => {
 		console.log('Cannot successfully generate the summaries for the code: ' + error)
 	});
