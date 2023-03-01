@@ -72,6 +72,7 @@ export class Explainer {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private box: HTMLDivElement,
+		private _boxRange: undefined | [number, number],
 		private _posttext: string,
 		private _pretext: string,
 		private _ghostTextController: GhostTextController | null,
@@ -102,12 +103,17 @@ export class Explainer {
 		var last_explain = document.getElementsByClassName("explainer-container");
 		for (var i = 0; i < last_explain.length; i++) {
 			last_explain[i].remove();
+			this._boxRange = undefined;
 		}
 	}
 
 	private onMouseDown() {
 		var mousePos = this._editor.getPosition();
-		console.log(mousePos);
+		if (mousePos !== null && this._boxRange !== undefined) {
+			if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
+				this.disposeExplanations();
+			}
+		}
 	}
 
 	private ghostTextChange() {
@@ -121,11 +127,16 @@ export class Explainer {
 			return summaryArr;
 		}
 		this._summaryArr = getExplain(generatedCode);
-		console.log("generated code", generatedCode, this);
 	}
 
 	private onKeyDown() {
 		this._pretext = this._editor.getValue();
+		var mousePos = this._editor.getPosition();
+		if (mousePos !== null && this._boxRange !== undefined) {
+			if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
+				this.disposeExplanations();
+			}
+		}
 	}
 
 	private onKeyUp() {
@@ -133,6 +144,7 @@ export class Explainer {
 		var diffed = diffText(this._posttext, this._pretext);
 		var eachLine = diffed["diff"].split("\n");
 		if (eachLine.length > 3) {
+			this._boxRange = [diffed['startLine'], diffed['startLine'] + eachLine.length - 2];
 			const editor_div = this._editor.getDomNode();
 			if (editor_div === null) {
 				throw new Error('Cannot find Monaco Editor');
