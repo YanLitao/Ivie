@@ -40,7 +40,9 @@ export function matchText(shortText: string, longText: string, startIdx: number)
 			break;
 		}
 	}
-	//console.log(shortText, startLine, endLine);
+	if (startLine == -1 && endLine > 0) {
+		startLine = 1;
+	}
 	return {
 		startLine,
 		endLine
