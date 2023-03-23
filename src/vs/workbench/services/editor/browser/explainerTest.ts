@@ -121,9 +121,7 @@ export class Explainer {
 	}
 
 	private onDidScrollChange(e: IScrollEvent) {
-		console.log(this.box);
 		if (this.box) {
-			console.log(this.box.style.top);
 			this.box.style.top = -this._editor.getScrollTop() + "px";
 		}
 	}
@@ -138,16 +136,29 @@ export class Explainer {
 
 	private ghostTextChange() {
 		const activeModel = this._ghostTextController?.activeModel;
-		var generatedCode = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines.join("\n");
-		if (generatedCode === undefined) {
+		var ghostText = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines;
+		var generatedCode = ghostText?.join("\n");
+		if (ghostText === undefined || generatedCode === undefined) {
 			return;
 		}
-		async function getExplain(text: string) {
-			var summaryArr = await OpenaiFetchAPI(text, 3);
+		var mousePos = this._editor.getPosition();
+		async function getExplain(text: string, type: string = 'multi', currentLine: string = "") {
+			var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
 			return summaryArr;
 		}
-		this._summaryArr = getExplain(generatedCode);
-		var mousePos = this._editor.getPosition();
+		var explainType = 'multi';
+		if (ghostText.length == 1) {
+			explainType = 'single';
+			if (mousePos !== null) {
+				var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
+			} else {
+				return;
+			}
+			console.log(this_line);
+			this._summaryArr = getExplain(generatedCode, explainType, this_line);
+		} else {
+			this._summaryArr = getExplain(generatedCode);
+		}
 		if (mousePos !== null) {
 			var generatedCodeLength = generatedCode.split("\n").length;
 			//var startLine = mousePos.lineNumber - generatedCodeLength;
@@ -159,9 +170,9 @@ export class Explainer {
 		this._posttext = this._editor.getValue();
 		var diffed = diffText(this._posttext, this._pretext);
 		var eachLine = diffed["diff"].split("\n");
-		if (eachLine.length > 3) {
+		if (eachLine.length >= 3) {
 			//this.createExplainer(diffed['diff'], diffed['startLine'], eachLine.length);
-		} else {
+		} else if (eachLine.length == 1) {
 			console.log("one line");
 			this.disposeExplanations();
 		}
@@ -189,7 +200,7 @@ export class Explainer {
 			return;
 		} else {
 			if (this._expandFlag) {
-				//this._editor.setValue(" ".repeat(250) + "\n" + this._editor.getValue());
+				//this._editor.setValue(this._editor.getValue() + "\n" + " ".repeat(250));
 				this._expandFlag = false;
 			}
 			/* var emptyPlaceHolder = document.createElement("span");
@@ -217,38 +228,56 @@ export class Explainer {
 		var explainWidth = editorWidth - explainStart;
 
 		var lineHeight = 18,
-			generateLine = generatedCodeLength - 1;
+			generateLine = generatedCodeLength;
 		console.log(generateLine);
 
 		this.box = document.createElement('div');
 		this.box.style.position = 'absolute';
-		this.box.style.top = (startLine - 2) * lineHeight + 22 + 'px'; // offset from the run button + border + padding
-		this.box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
-		this.box.style.left = explainStart + 'px';
-		this.box.style.height = generateLine * lineHeight + 'px';
+		//this.box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
 		this.box.className = "explainer-container";
 		this.box.style.zIndex = '100';
 
 		var border_div = document.createElement('div');
-		border_div.style.float = 'left';
-		border_div.style.width = '30px';
-		border_div.style.height = generateLine * lineHeight + 'px';
-		border_div.style.backgroundImage = 'linear-gradient(to right, rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
-		this.box.appendChild(border_div);
-		border_div.addEventListener('mouseover', function (this) {
-			this.style.backgroundImage = 'linear-gradient(to right, rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
-		});
-		border_div.addEventListener('mouseout', function (this) {
-			this.style.backgroundImage = 'linear-gradient(to right, rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
-		});
 
 		var content_div = document.createElement('div');
-		content_div.style.width = explainWidth - 30 + 'px';
-		content_div.style.height = generateLine * lineHeight + 'px';
-		content_div.style.float = 'right';
 		content_div.style.backgroundColor = 'rgba(60, 60, 60, 1)';
 		content_div.style.boxSizing = 'border-box';
 		content_div.style.display = 'block';
+
+		var type = "multi";
+
+		if (generateLine > 1) {
+			this.box.style.top = (startLine - 2) * lineHeight + 22 + 'px';
+			this.box.style.left = explainStart + 'px';
+			this.box.style.height = generateLine * lineHeight + 'px';
+			border_div.style.height = generateLine * lineHeight + 'px';
+			border_div.style.float = 'left';
+			border_div.style.width = '30px';
+			content_div.style.height = generateLine * lineHeight + 'px';
+			content_div.style.width = explainWidth - 30 + 'px';
+			content_div.style.float = 'right';
+			var border_position = 'right';
+		} else {
+			this.box.style.top = (startLine - 1) * lineHeight + 22 + 'px';
+			this.box.style.left = '66px';
+			this.box.style.minHeight = '80px';
+			border_div.style.height = '5px';
+			content_div.style.minHeight = '50px';
+			content_div.style.width = explainWidth + 'px';
+			border_div.style.width = explainWidth + 'px';
+			type = "single";
+			var border_position = 'bottom';
+		}
+
+		border_div.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
+		this.box.appendChild(border_div);
+		border_div.addEventListener('mouseover', function (this) {
+			this.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
+		});
+		border_div.addEventListener('mouseout', function (this) {
+			this.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
+		});
+
 		this.box.appendChild(content_div);
 		border_div.addEventListener('click', function (this) {
 			if (this.parentElement) {
@@ -261,11 +290,12 @@ export class Explainer {
 				}
 			}
 		});
+
 		this._summaryArr.then(function (value) {
 			if (value === undefined) {
 				return;
 			}
-			drawBends(content_div, value, lineHeight);
+			drawBends(content_div, value, lineHeight, type);
 		});
 		parent[0].insertBefore(this.box, parent[0].firstChild);
 	}
