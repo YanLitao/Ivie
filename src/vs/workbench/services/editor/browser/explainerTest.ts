@@ -39,44 +39,16 @@ function getStartPos(textArray: string[]) {
 	}
 }
 
-function diffText(textA: string, textB: string) {
-	var diff = "",
-		startLine = 0,
-		startFlag = false;
-	var text1 = textA.split("\n"),
-		text2 = textB.split("\n"),
-		startIdx = 0;
-	for (var i = 0; i < text1.length; i++) {
-		var flag = false;
-		for (var j = startIdx; j < text2.length; j++) {
-			if (text1[i] === text2[j]) {
-				flag = true;
-				startIdx = j + 1;
-				break;
-			}
-		}
-		if (flag === false) {
-			diff += text1[i] + "\n";
-			if (startFlag === false) {
-				startLine = i + 1;
-				startFlag = true;
-			}
-		}
-	}
-	return { diff, startLine };
-}
-
 export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private box: HTMLDivElement,
 		private _boxRange: undefined | [number, number],
-		private _posttext: string,
-		private _pretext: string,
 		private _ghostTextController: GhostTextController | null,
 		private _summaryArr: Promise<void | [number, number, string][]>,
 		private _expandFlag: boolean,
+		private _boxOriginalPostion: number,
 	) {
 		this._expandFlag = true;
 		this._editor.onDidScrollChange((e) => { this.onDidScrollChange(e); });
@@ -90,8 +62,6 @@ export class Explainer {
 		if (this._ghostTextController == null) {
 			return;
 		} else {
-			//console.log(this._ghostTextController);
-			//console.log(this._ghostTextController.editor);
 			if (this._ghostTextController !== undefined) {
 				const activeModel = this._ghostTextController.activeModel;
 				if (activeModel !== undefined) {
@@ -122,7 +92,7 @@ export class Explainer {
 
 	private onDidScrollChange(e: IScrollEvent) {
 		if (this.box) {
-			this.box.style.top = -this._editor.getScrollTop() + "px";
+			this.box.style.top = this._boxOriginalPostion - this._editor.getScrollTop() + "px";
 		}
 	}
 
@@ -154,7 +124,6 @@ export class Explainer {
 			} else {
 				return;
 			}
-			console.log(this_line);
 			this._summaryArr = getExplain(generatedCode, explainType, this_line);
 		} else {
 			this._summaryArr = getExplain(generatedCode);
@@ -167,19 +136,9 @@ export class Explainer {
 	}
 
 	private onKeyUp() {
-		this._posttext = this._editor.getValue();
-		var diffed = diffText(this._posttext, this._pretext);
-		var eachLine = diffed["diff"].split("\n");
-		if (eachLine.length >= 3) {
-			//this.createExplainer(diffed['diff'], diffed['startLine'], eachLine.length);
-		} else if (eachLine.length == 1) {
-			console.log("one line");
-			this.disposeExplanations();
-		}
 	}
 
 	private onKeyDown() {
-		this._pretext = this._editor.getValue();
 		var mousePos = this._editor.getPosition();
 		if (mousePos !== null && this._boxRange !== undefined) {
 			if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
@@ -229,25 +188,24 @@ export class Explainer {
 
 		var lineHeight = 18,
 			generateLine = generatedCodeLength;
-		console.log(generateLine);
 
 		this.box = document.createElement('div');
 		this.box.style.position = 'absolute';
-		//this.box.style.bottom = '14px'; // offset from the horizontal scroll bar (if any)
 		this.box.className = "explainer-container";
 		this.box.style.zIndex = '100';
 
 		var border_div = document.createElement('div');
 
 		var content_div = document.createElement('div');
-		content_div.style.backgroundColor = 'rgba(60, 60, 60, 1)';
+		content_div.style.backgroundColor = 'rgba(40, 44, 52, 0)';
 		content_div.style.boxSizing = 'border-box';
 		content_div.style.display = 'block';
 
 		var type = "multi";
 
 		if (generateLine > 1) {
-			this.box.style.top = (startLine - 2) * lineHeight + 22 + 'px';
+			this.box.style.top = (startLine - 2) * lineHeight + 20 + 'px';
+			this._boxOriginalPostion = (startLine - 2) * lineHeight + 20;
 			this.box.style.left = explainStart + 'px';
 			this.box.style.height = generateLine * lineHeight + 'px';
 			border_div.style.height = generateLine * lineHeight + 'px';
@@ -258,38 +216,39 @@ export class Explainer {
 			content_div.style.float = 'right';
 			var border_position = 'right';
 		} else {
-			this.box.style.top = (startLine - 1) * lineHeight + 22 + 'px';
+			this.box.style.top = (startLine - 1) * lineHeight + 20 + 'px';
+			this._boxOriginalPostion = (startLine - 1) * lineHeight + 20;
 			this.box.style.left = '66px';
-			this.box.style.minHeight = '80px';
-			border_div.style.height = '5px';
-			content_div.style.minHeight = '50px';
+			border_div.style.height = '0px';
 			content_div.style.width = explainWidth + 'px';
 			border_div.style.width = explainWidth + 'px';
 			type = "single";
 			var border_position = 'bottom';
 		}
 
-		border_div.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
+		border_div.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';
 		this.box.appendChild(border_div);
+		if (type == "multi") {
+			border_div.addEventListener('click', function (this) {
+				if (this.parentElement) {
+					if (content_div.style.display == 'none') {
+						content_div.style.display = 'block';
+						this.parentElement.style.left = explainStart + 'px';
+					} else {
+						this.parentElement.style.left = editorWidth - 30 + 'px';
+						content_div.style.display = 'none';
+					}
+				}
+			});
+		}
 		border_div.addEventListener('mouseover', function (this) {
 			this.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
 		});
 		border_div.addEventListener('mouseout', function (this) {
-			this.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(60, 60, 60, 0), rgba(60, 60, 60, 1) 100%)';
+			this.style.backgroundImage = 'linear-gradient(to ' + border_position + ', rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';
 		});
 
 		this.box.appendChild(content_div);
-		border_div.addEventListener('click', function (this) {
-			if (this.parentElement) {
-				if (content_div.style.display == 'none') {
-					content_div.style.display = 'block';
-					this.parentElement.style.left = explainStart + 'px';
-				} else {
-					this.parentElement.style.left = editorWidth - 30 + 'px';
-					content_div.style.display = 'none';
-				}
-			}
-		});
 
 		this._summaryArr.then(function (value) {
 			if (value === undefined) {
