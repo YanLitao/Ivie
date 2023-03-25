@@ -6,7 +6,7 @@ function createBendDiv(height: number, marginTop: number, text: string) {
 	//newBend.style.display = 'block';
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
-	newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)';
+	newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
 	newBend.style.borderLeft = '2px solid white';
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
@@ -39,7 +39,7 @@ export function drawBends(div: HTMLDivElement, bends: [number, number, string][]
 			newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
 			newBend.style.minHeight = '50px';
 			newBend.style.marginLeft = (bends[i][0] - lastIndex - 1) * 7.225 + 'px';
-			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)';
+			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid white';
 			newBend.style.boxSizing = 'border-box';
 			newBend.innerText = bends[i][2];
@@ -134,6 +134,8 @@ export function matchLongText(text: string, longText: string) {
 
 function matchColumn(text: string, longText: string) {
 	text = text.trim();
+	longText = longText.replace(/\t/g, '    ');
+	console.log(longText.replace(/\t/g, '    '));
 	const start = longText.indexOf(text);
 	if (start >= 0) {
 		const end = start + text.length - 1;
