@@ -44,9 +44,9 @@ export class Explainer {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private editorDiv = _editor.getDomNode(),
-		private box: HTMLDivElement,
-		private borderDiv: HTMLDivElement,
-		private contentDiv: HTMLDivElement,
+		private box: HTMLDivElement | undefined = undefined,
+		private borderDiv: HTMLDivElement | undefined = undefined,
+		private contentDiv: HTMLDivElement | undefined = undefined,
 		private lineHeight: number,
 		private _boxRange: undefined | [number, number],
 		private _ghostTextController: GhostTextController | null,
@@ -127,9 +127,10 @@ export class Explainer {
 		if (ghostText === undefined || generatedCode === undefined) {
 			return;
 		}
-		if (generatedCode == this._lastGeneratedCode && this.box !== undefined) {
+		if (generatedCode.trim() == this._lastGeneratedCode.trim() && this.box !== undefined) {
 			return;
 		}
+		this._lastGeneratedCode = generatedCode.trim();
 		var generatedCodeLength = generatedCode.split("\n").length;
 		var mousePos = this._editor.getPosition();
 		if (mousePos == null) return;
@@ -148,6 +149,7 @@ export class Explainer {
 			}
 			return summaryArr;
 		}
+		if (this.contentDiv === undefined) return;
 
 		if (explainType == "single") {
 			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
@@ -156,11 +158,12 @@ export class Explainer {
 			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag);
 		}
 		this._summaryArr.then((value) => {
+			if (this.contentDiv === undefined) return;
 			if (value === undefined) {
 				return;
 			}
 			if (explainType == "single") {
-				if (this._coloredOneLineFlag) {
+				if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
 					this.createSingleExplainer(value, this.contentDiv, this.borderDiv, this.lineHeight);
 				} else {
 					drawBends(this.contentDiv, value, this.lineHeight, explainType);
@@ -169,6 +172,7 @@ export class Explainer {
 				drawBends(this.contentDiv, value, this.lineHeight, explainType);
 			}
 		});
+		if (this.box === undefined) return;
 		parent[0].insertBefore(this.box, parent[0].firstChild);
 		this.onDidScrollChange();
 	}
@@ -267,7 +271,6 @@ export class Explainer {
 						bend.style.color = "rgb(60, 60, 60, 0.1)";
 						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
 						var codeLineDiv = borderDiv.querySelector<HTMLElement>("#codeLine" + bend.id.replace("bend", ""));
-						console.log("#codeLine" + bend.id.replace("bend", ""), codeLineDiv);
 						if (codeLineDiv) {
 							codeLineDiv.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
 						}
@@ -367,18 +370,20 @@ export class Explainer {
 	}
 
 	public dispose(): void {
-		console.log("disposed");
 		if (document.getElementById("explainer_container") !== null) {
 			return;
 		} else {
 			if (this.box) {
 				this.box.remove();
+				this.box = undefined;
 			}
 			if (this.borderDiv) {
 				this.borderDiv.remove();
+				this.borderDiv = undefined;
 			}
 			if (this.contentDiv) {
 				this.contentDiv.remove();
+				this.contentDiv = undefined;
 			}
 		}
 	}

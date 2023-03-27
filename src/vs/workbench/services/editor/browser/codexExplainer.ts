@@ -280,7 +280,6 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 			}
 		}
 		lastLine = newExplain[1];
-		console.log(newExplain);
 		var height = (newExplain[1] - newExplain[0] + 1) * 18 - 2;
 		if (i == 0) {
 			// first bend
