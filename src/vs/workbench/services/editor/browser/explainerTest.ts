@@ -1,6 +1,6 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { OpenaiFetchAPI, drawBends } from 'vs/workbench/services/editor/browser/codexExplainer';
+import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 //import { IScrollEvent } from 'vs/editor/common/editorCommon';
 
@@ -43,14 +43,27 @@ export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private editorDiv = _editor.getDomNode(),
 		private box: HTMLDivElement,
+		private borderDiv: HTMLDivElement,
+		private contentDiv: HTMLDivElement,
+		private lineHeight: number,
 		private _boxRange: undefined | [number, number],
 		private _ghostTextController: GhostTextController | null,
 		private _summaryArr: Promise<void | [number, number, string][]>,
 		//private _expandFlag: boolean,
 		private _boxOriginalPostion: number,
+		private _coloredOneLineFlag: boolean,
+		private _multiLineStreamFlag: boolean,
+		private _disposeFlag: boolean,
+		private _lastGeneratedCode: string,
 	) {
+		this._lastGeneratedCode = "";
 		//this._expandFlag = true;
+		this.lineHeight = 18;
+		this._disposeFlag = true;
+		this._coloredOneLineFlag = true;
+		this._multiLineStreamFlag = true;
 		this._editor.onDidScrollChange(() => { this.onDidScrollChange(); });
 		this._editor.onKeyDown(() => { this.onKeyDown(); });
 		this._editor.onKeyUp(() => { this.onKeyUp(); });
@@ -74,11 +87,13 @@ export class Explainer {
 	}
 
 	private disposeExplanations() {
+		this.dispose();
 		var last_explain = document.getElementsByClassName("explainer-container");
 		for (var i = 0; i < last_explain.length; i++) {
 			last_explain[i].remove();
 			this._boxRange = undefined;
 		}
+		this._disposeFlag = true;
 	}
 
 	private onMouseDown() {
@@ -105,34 +120,57 @@ export class Explainer {
 	}
 
 	private ghostTextChange() {
+		if (this._disposeFlag == false) return;
 		const activeModel = this._ghostTextController?.activeModel;
 		var ghostText = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines;
 		var generatedCode = ghostText?.join("\n");
 		if (ghostText === undefined || generatedCode === undefined) {
 			return;
 		}
+		if (generatedCode == this._lastGeneratedCode && this.box !== undefined) {
+			return;
+		}
 		var generatedCodeLength = generatedCode.split("\n").length;
 		var mousePos = this._editor.getPosition();
-		async function getExplain(text: string, type: string = 'multi', currentLine: string = "") {
-			var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
+		if (mousePos == null) return;
+		if (this.editorDiv === null) return;
+		var parent = this.editorDiv.getElementsByClassName("overflow-guard");
+		if (ghostText.length == 1) {
+			var explainType = 'single';
+		} else {
+			var explainType = 'multi';
+		}
+		this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
+		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "") {
+			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div) };
+			if (multiLineStreamFlag == false || type == "single") {
+				var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
+			}
 			return summaryArr;
 		}
-		var explainType = 'multi';
-		if (ghostText.length == 1) {
-			explainType = 'single';
-			if (mousePos !== null) {
-				var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
-				this._summaryArr = getExplain(generatedCode, explainType, this_line);
-				this.createExplainer(generatedCode, mousePos.lineNumber, generatedCodeLength);
-			} else {
+
+		if (explainType == "single") {
+			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
+			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
+		} else {
+			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag);
+		}
+		this._summaryArr.then((value) => {
+			if (value === undefined) {
 				return;
 			}
-		} else {
-			if (mousePos !== null) {
-				this._summaryArr = getExplain(generatedCode);
-				this.createExplainer(generatedCode, mousePos.lineNumber, generatedCodeLength);
+			if (explainType == "single") {
+				if (this._coloredOneLineFlag) {
+					this.createSingleExplainer(value, this.contentDiv, this.borderDiv, this.lineHeight);
+				} else {
+					drawBends(this.contentDiv, value, this.lineHeight, explainType);
+				}
+			} else {
+				drawBends(this.contentDiv, value, this.lineHeight, explainType);
 			}
-		}
+		});
+		parent[0].insertBefore(this.box, parent[0].firstChild);
+		this.onDidScrollChange();
 	}
 
 	private onKeyUp() {
@@ -253,94 +291,79 @@ export class Explainer {
 		});
 	}
 
-	private createExplainer(diff: string, startLine: number, generatedCodeLength: number = 0) {
+	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
 		this.disposeExplanations();
 		var eachLine = diff.split("\n");
 		this._boxRange = [startLine, startLine + generatedCodeLength - 2];
-		const editor_div = this._editor.getDomNode();
-		if (editor_div === null) {
+		if (this.editorDiv === null) {
 			throw new Error('Cannot find Monaco Editor');
 		}
-		var parent = editor_div.getElementsByClassName("overflow-guard");//"lines-content monaco-editor-background"
-		var trueVisableEditor = parent[0].parentElement;
-		//this.expandEditor(parent[0]);
 
-		var explainStart = getStartPos(eachLine);
-		var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
-		var explainWidth = editorWidth - explainStart;
-
-		var lineHeight = 18,
-			generateLine = generatedCodeLength;
+		var generateLine = generatedCodeLength;
 
 		this.box = document.createElement('div');
 		this.box.style.position = 'absolute';
 		this.box.className = "explainer-container";
 		this.box.style.zIndex = '100';
 
-		var border_div = document.createElement('div');
+		this.borderDiv = document.createElement('div');
+		this.borderDiv.id = "borderDiv";
 
-		var content_div = document.createElement('div');
-		content_div.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
-		content_div.style.boxSizing = 'border-box';
-		content_div.style.display = 'block';
+		this.contentDiv = document.createElement('div');
+		this.contentDiv.id = "contentDiv";
+		this.contentDiv.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
+		this.contentDiv.style.boxSizing = 'border-box';
+		this.contentDiv.style.display = 'block';
 
-		var type = "multi";
-		if (generateLine > 1) {
-			this._boxOriginalPostion = (startLine - 2) * lineHeight + 18;
+		var explainStart = getStartPos(eachLine);
+		//var parent = editor_div.getElementsByClassName("overflow-guard");//"lines-content monaco-editor-background"
+		var trueVisableEditor = parent[0].parentElement;
+		var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
+		var explainWidth = editorWidth - explainStart;
+
+		if (type == "multi") {
+			this._boxOriginalPostion = (startLine - 2) * this.lineHeight + 18;
 			this.box.style.top = this._boxOriginalPostion + 'px';
 			this.box.style.left = explainStart + 'px';
-			this.box.style.height = generateLine * lineHeight + 'px';
-			border_div.style.height = generateLine * lineHeight + 'px';
-			border_div.style.float = 'left';
-			border_div.style.width = '30px';
-			border_div.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
-			content_div.style.height = generateLine * lineHeight + 'px';
-			content_div.style.width = explainWidth - 30 + 'px';
-			content_div.style.float = 'right';
+			this.box.style.height = generateLine * this.lineHeight + 'px';
+			this.borderDiv.style.height = generateLine * this.lineHeight + 'px';
+			this.borderDiv.style.float = 'left';
+			this.borderDiv.style.width = '30px';
+			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
+			this.contentDiv.style.height = generateLine * this.lineHeight + 'px';
+			this.contentDiv.style.width = explainWidth - 30 + 'px';
+			this.contentDiv.style.float = 'right';
 		} else {
-			this._boxOriginalPostion = (startLine - 1) * lineHeight + 16;
+			this._boxOriginalPostion = (startLine - 1) * this.lineHeight + 16;
 			this.box.style.top = this._boxOriginalPostion + 'px';
 			this.box.style.left = '66px';
-			border_div.style.height = '7px';
-			content_div.style.width = explainWidth + 'px';
-			border_div.style.width = explainWidth + 'px';
-			type = "single";
+			this.borderDiv.style.height = '7px';
+			this.contentDiv.style.width = explainWidth + 'px';
+			this.borderDiv.style.width = explainWidth + 'px';
 		}
-		this.box.appendChild(border_div);
+		this.box.appendChild(this.borderDiv);
 		if (type == "multi") {
-			border_div.addEventListener('click', function (this) {
+			this.borderDiv.addEventListener('click', function (this) {
 				if (this.parentElement) {
-					if (content_div.style.display == 'none') {
-						content_div.style.display = 'block';
+					var contentDiv = document.getElementById("contentDiv");
+					if (contentDiv && contentDiv.style.display == 'none') {
+						contentDiv.style.display = 'block';
 						this.parentElement.style.left = explainStart + 'px';
-					} else {
+					} else if (contentDiv) {
 						this.parentElement.style.left = editorWidth - 30 + 'px';
-						content_div.style.display = 'none';
+						contentDiv.style.display = 'none';
 					}
 				}
 			});
-			border_div.addEventListener('mouseover', function (this) {
+			this.borderDiv.addEventListener('mouseover', function (this) {
 				this.style.backgroundImage = 'linear-gradient(to right, rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
 			});
-			border_div.addEventListener('mouseout', function (this) {
+			this.borderDiv.addEventListener('mouseout', function (this) {
 				this.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
 			});
 		}
 
-		this.box.appendChild(content_div);
-
-		this._summaryArr.then((value) => {
-			if (value === undefined) {
-				return;
-			}
-			if (type == "single") {
-				this.createSingleExplainer(value, content_div, border_div, lineHeight);
-			} else {
-				drawBends(content_div, value, lineHeight, type);
-			}
-		});
-		parent[0].insertBefore(this.box, parent[0].firstChild);
-		this.onDidScrollChange();
+		this.box.appendChild(this.contentDiv);
 	}
 
 	public dispose(): void {
@@ -348,7 +371,15 @@ export class Explainer {
 		if (document.getElementById("explainer_container") !== null) {
 			return;
 		} else {
-			this.box.remove();
+			if (this.box) {
+				this.box.remove();
+			}
+			if (this.borderDiv) {
+				this.borderDiv.remove();
+			}
+			if (this.contentDiv) {
+				this.contentDiv.remove();
+			}
 		}
 	}
 }

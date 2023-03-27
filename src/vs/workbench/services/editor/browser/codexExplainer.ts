@@ -19,7 +19,7 @@ export function drawBends(div: HTMLDivElement, bends: [number, number, string][]
 	var whiteSpace = 2;
 	if (type == "multi") {
 		for (var i = 0; i < bends.length; i++) {
-			var heigh = (bends[i][1] - bends[i][0] + 1) * lineHeight - whiteSpace;
+			var height = (bends[i][1] - bends[i][0] + 1) * lineHeight - whiteSpace;
 			if (i == 0) {
 				// first bend
 				var marginTop = (bends[0][0] - 1) * lineHeight;
@@ -27,7 +27,7 @@ export function drawBends(div: HTMLDivElement, bends: [number, number, string][]
 				var marginTop = (bends[i][0] - bends[i - 1][1] - 1) * lineHeight + whiteSpace;
 			}
 			var text = bends[i][2];
-			var newBend = createBendDiv(heigh, marginTop, text);
+			var newBend = createBendDiv(height, marginTop, text);
 			div.appendChild(newBend);
 		}
 	} else {
@@ -135,7 +135,6 @@ export function matchLongText(text: string, longText: string) {
 function matchColumn(text: string, longText: string) {
 	text = text.trim();
 	longText = longText.replace(/\t/g, '    ');
-	console.log(longText.replace(/\t/g, '    '));
 	const start = longText.indexOf(text);
 	if (start >= 0) {
 		const end = start + text.length - 1;
@@ -255,4 +254,120 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 		console.log('Cannot successfully generate the summaries for the code: ' + error)
 	});
 	return returnSum;
+}
+
+function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string]) {
+	var eArr: string[] = e.split("\n"),
+		lastLine = 0,
+		regExp = /[a-zA-Z]/g;
+	if (eArr.length >= 2) {
+		var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, ""];
+		var firstLine = eArr.shift();
+		if (firstLine !== undefined) {
+			newExplain[2] = firstLine;
+		}
+		for (var i = 0; i < eArr.length; i++) {
+			if (regExp.test(eArr[i])) {
+				var otherLineNumbers = matchText(eArr[i], code, lastLine);
+				if (i == 0) {
+					newExplain[0] = otherLineNumbers.startLine;
+				} else if (lastLine < otherLineNumbers.startLine && otherLineNumbers.startLine < newExplain[0]) {
+					newExplain[0] = otherLineNumbers.startLine;
+				}
+				if (otherLineNumbers.endLine > newExplain[1]) {
+					newExplain[1] = otherLineNumbers.endLine;
+				}
+			}
+		}
+		lastLine = newExplain[1];
+		console.log(newExplain);
+		var height = (newExplain[1] - newExplain[0] + 1) * 18 - 2;
+		if (i == 0) {
+			// first bend
+			var marginTop = (newExplain[0] - 1) * 18;
+		} else {
+			var marginTop = (newExplain[0] - lastExplain[1] - 1) * 18 + 2;
+		}
+		var text = newExplain[2];
+		var newBend = createBendDiv(height, marginTop, text);
+		div.appendChild(newBend);
+		return newExplain;
+	} else {
+		return;
+	}
+}
+
+export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberSections: number = 3) {
+	var url = "https://api.openai.com/v1/completions";
+	var bearer = 'Bearer ' + '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'
+	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with *).\n" +
+		"Prompt:\n" +
+		"var beginDate = new Date(begin);\n" +
+		"var endDate = new Date(end);\n" +
+		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
+		"Output:\n" +
+		"*1. Define the start date.\n" +
+		"var beginDate = new Date(begin);\n" +
+		"*2. Define the end date.\n" +
+		"var endDate = new Date(end);\n" +
+		"*3. Calculate the number of days between the start and end dates.\n" +
+		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
+		"Prompt: \n";
+	var promptSummary = prompt + code + "\nOutput:";
+	console.log(promptSummary);
+	let returnSum = await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Authorization': bearer,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			"model": "text-davinci-003",//davinci:ft-personal-2023-02-12-20-22-59
+			"prompt": promptSummary,
+			"max_tokens": 1000,
+			"temperature": 0.5,
+			"top_p": 0.5,
+			"n": 1,
+			"stream": true,
+			"logprobs": null
+		})
+	});
+
+	const streamReader = returnSum.body?.pipeThrough(new TextDecoderStream()).getReader();
+	// read each JSON object from the stream as it is received
+	var eachSnippet = "",
+		lastChar = "",
+		lastExplain: [number, number, string] = [0, 0, ""];
+	while (true) {
+		if (streamReader == null) break;
+		var { done, value } = await streamReader.read();
+		if (done || value == "[DONE]") {
+			if (eachSnippet != "") {
+				buildBendWithStream(div, eachSnippet, code, lastExplain);
+			}
+			break;
+		}
+		if (value == null) continue;
+		var eachData = value?.split('data: ');
+		for (const c of eachData) {
+			if (c !== "" && c.includes("choices")) {
+				try {
+					var data = JSON.parse(c);
+					var currentChar = data['choices'][0].text;
+					if (lastChar == "\n" && currentChar == "*") {
+						var temp = buildBendWithStream(div, eachSnippet, code, lastExplain);
+						if (temp != undefined) {
+							lastExplain = temp;
+						}
+						eachSnippet = "";
+					} else {
+						eachSnippet += currentChar;
+					}
+					lastChar = currentChar;
+				} catch (e) {
+					console.log(e);
+				}
+			}
+		}
+	}
 }
