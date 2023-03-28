@@ -57,7 +57,9 @@ export class Explainer {
 		private _multiLineStreamFlag: boolean,
 		private _disposeFlag: boolean,
 		private _lastGeneratedCode: string,
+		private _explainerIdx: number,
 	) {
+		this._explainerIdx = 0;
 		this._lastGeneratedCode = "";
 		//this._expandFlag = true;
 		this.lineHeight = 18;
@@ -127,6 +129,7 @@ export class Explainer {
 		if (ghostText === undefined || generatedCode === undefined) {
 			return;
 		}
+		console.log(generatedCode.trim(), this._lastGeneratedCode.trim(), this.box);
 		if (generatedCode.trim() == this._lastGeneratedCode.trim() && this.box !== undefined) {
 			return;
 		}
@@ -141,7 +144,10 @@ export class Explainer {
 		} else {
 			var explainType = 'multi';
 		}
-		this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
+		var currentIdx = this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
+		if (this.box === undefined) return;
+		parent[0].insertBefore(this.box, parent[0].firstChild);
+		this.onDidScrollChange();
 		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "") {
 			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div) };
 			if (multiLineStreamFlag == false || type == "single") {
@@ -164,17 +170,14 @@ export class Explainer {
 			}
 			if (explainType == "single") {
 				if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
-					this.createSingleExplainer(value, this.contentDiv, this.borderDiv, this.lineHeight);
+					this.createSingleExplainer(value, currentIdx);
 				} else {
-					drawBends(this.contentDiv, value, this.lineHeight, explainType);
+					drawBends(currentIdx, value, this.lineHeight, explainType);
 				}
 			} else {
-				drawBends(this.contentDiv, value, this.lineHeight, explainType);
+				drawBends(currentIdx, value, this.lineHeight, explainType);
 			}
 		});
-		if (this.box === undefined) return;
-		parent[0].insertBefore(this.box, parent[0].firstChild);
-		this.onDidScrollChange();
 	}
 
 	private onKeyUp() {
@@ -212,15 +215,18 @@ export class Explainer {
 		}
 	} */
 
-	private createSingleExplainer(bends: [number, number, string][], contentDiv: HTMLDivElement, borderDiv: HTMLDivElement, lineHeight: number) {
+	private createSingleExplainer(bends: [number, number, string][], currentIdx: number) {
 		var lastIdx = -1,
-			heighArry = [];
+			heighArry = [],
+			contentDiv = document.getElementById("contentDiv" + currentIdx),
+			borderDiv = document.getElementById("borderDiv" + currentIdx);
+		if (contentDiv === null || borderDiv === null) return;
 		var colorHue = ["rgb(114,217,88)", "rgb(216,138,237)", "rgb(194,223,65)", "rgb(117,167,240)", "rgb(222,188,62)", "rgb(95,220,169)", "rgb(235,150,83)", "rgb(189,205,114)"];
 		for (var i = 0; i < bends.length; i++) {
 			var newBend = document.createElement("div"),
 				codeLine = document.createElement("div");
 			newBend.className = 'bend';
-			newBend.id = 'bend' + i;
+			newBend.id = 'bend_' + currentIdx + "_" + i;
 
 			codeLine.className = 'codeLine';
 			codeLine.id = 'codeLine' + i;
@@ -253,8 +259,8 @@ export class Explainer {
 			/* newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
 			newBend.style.minHeight = '50px';
 			newBend.style.marginLeft = (bends[i][0] - lastIdx - 1) * 7.225 + 'px';*/
-			contentDiv.appendChild(newBend);
-			borderDiv.appendChild(codeLine);
+			contentDiv?.appendChild(newBend);
+			borderDiv?.appendChild(codeLine);
 			heighArry.push(newBend.offsetHeight);
 			lastIdx = bends[i][1];
 		}
@@ -265,12 +271,15 @@ export class Explainer {
 		contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((newBend) => {
 			newBend.addEventListener('mouseover', () => {
 				var bendId = newBend.id;
-				contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
+				var idx = bendId.split("_")[1];
+				var contentDiv = document.getElementById("contentDiv" + idx);
+				var borderDiv = document.getElementById("borderDiv" + idx);
+				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
 					if (bend.id !== bendId) {
 						bend.style.backgroundColor = 'rgb(40, 44, 52, 0.6)';
 						bend.style.color = "rgb(60, 60, 60, 0.1)";
 						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
-						var codeLineDiv = borderDiv.querySelector<HTMLElement>("#codeLine" + bend.id.replace("bend", ""));
+						var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bend.id.replace("bend", ""));
 						if (codeLineDiv) {
 							codeLineDiv.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
 						}
@@ -279,13 +288,16 @@ export class Explainer {
 			});
 		});
 		contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((newBend) => {
+			var idx = newBend.id.split("_")[1];
+			var contentDiv = document.getElementById("contentDiv" + idx);
+			var borderDiv = document.getElementById("borderDiv" + idx);
 			newBend.addEventListener('mouseout', () => {
-				contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
+				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
 					bend.style.backgroundColor = 'rgb(40, 44, 52, 1)';
 					var idx = parseInt(bend.id.replace("bend", ""));
 					bend.style.color = "rgb(212,212,212,1)";
 					bend.style.borderTop = '2px solid ' + colorHue[idx % colorHue.length];
-					var codeLineDiv = borderDiv.querySelector<HTMLElement>("#codeLine" + idx);
+					var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + idx);
 					if (codeLineDiv) {
 						codeLineDiv.style.borderTop = '2px solid ' + colorHue[idx % colorHue.length];
 					}
@@ -296,6 +308,7 @@ export class Explainer {
 
 	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
 		this.disposeExplanations();
+		var newIdx = this._explainerIdx;
 		var eachLine = diff.split("\n");
 		this._boxRange = [startLine, startLine + generatedCodeLength - 2];
 		if (this.editorDiv === null) {
@@ -308,23 +321,22 @@ export class Explainer {
 		this.box.style.position = 'absolute';
 		this.box.className = "explainer-container";
 		this.box.style.zIndex = '100';
+		this.box.id = "explainer" + newIdx;
 
 		this.borderDiv = document.createElement('div');
-		this.borderDiv.id = "borderDiv";
+		this.borderDiv.id = "borderDiv" + newIdx;
 
 		this.contentDiv = document.createElement('div');
-		this.contentDiv.id = "contentDiv";
+		this.contentDiv.id = "contentDiv" + newIdx;
 		this.contentDiv.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
 		this.contentDiv.style.boxSizing = 'border-box';
 		this.contentDiv.style.display = 'block';
 
-		var explainStart = getStartPos(eachLine);
-		//var parent = editor_div.getElementsByClassName("overflow-guard");//"lines-content monaco-editor-background"
-		var trueVisableEditor = parent[0].parentElement;
-		var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
-		var explainWidth = editorWidth - explainStart;
-
 		if (type == "multi") {
+			var explainStart = getStartPos(eachLine);
+			var trueVisableEditor = parent[0].parentElement;
+			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
+			var explainWidth = editorWidth - explainStart;
 			this._boxOriginalPostion = (startLine - 2) * this.lineHeight + 18;
 			this.box.style.top = this._boxOriginalPostion + 'px';
 			this.box.style.left = explainStart + 'px';
@@ -341,8 +353,8 @@ export class Explainer {
 			this.box.style.top = this._boxOriginalPostion + 'px';
 			this.box.style.left = '66px';
 			this.borderDiv.style.height = '7px';
-			this.contentDiv.style.width = explainWidth + 'px';
-			this.borderDiv.style.width = explainWidth + 'px';
+			this.contentDiv.style.width = '1500px';
+			this.borderDiv.style.width = '1500px';
 		}
 		this.box.appendChild(this.borderDiv);
 		if (type == "multi") {
@@ -365,8 +377,8 @@ export class Explainer {
 				this.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
 			});
 		}
-
 		this.box.appendChild(this.contentDiv);
+		return newIdx;
 	}
 
 	public dispose(): void {
@@ -385,6 +397,7 @@ export class Explainer {
 				this.contentDiv.remove();
 				this.contentDiv = undefined;
 			}
+			this._explainerIdx += 1;
 		}
 	}
 }

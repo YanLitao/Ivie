@@ -15,7 +15,9 @@ function createBendDiv(height: number, marginTop: number, text: string) {
 	return newBend;
 }
 
-export function drawBends(div: HTMLDivElement, bends: [number, number, string][], lineHeight: number, type: string) {
+export function drawBends(currentIdx: number, bends: [number, number, string][], lineHeight: number, type: string) {
+	var div = document.getElementById('contentDiv' + currentIdx);
+	if (!div) return;
 	var whiteSpace = 2;
 	if (type == "multi") {
 		for (var i = 0; i < bends.length; i++) {
