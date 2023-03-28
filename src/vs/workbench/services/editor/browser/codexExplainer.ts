@@ -6,7 +6,7 @@ function createBendDiv(height: number, marginTop: number, text: string) {
 	//newBend.style.display = 'block';
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
-	newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
+	newBend.style.backgroundColor = 'rgb(30, 30, 30, 1)'; //132,194,214,0.2
 	newBend.style.borderLeft = '2px solid white';
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
@@ -134,24 +134,6 @@ export function matchLongText(text: string, longText: string) {
 	}
 } */
 
-function matchColumn(text: string, longText: string) {
-	text = text.trim();
-	longText = longText.replace(/\t/g, '    ');
-	const start = longText.indexOf(text);
-	if (start >= 0) {
-		const end = start + text.length - 1;
-		return {
-			start,
-			end
-		}
-	} else {
-		return {
-			start: -1,
-			end: -1
-		}
-	}
-}
-
 export async function OpenaiFetchAPI(code: string, explainType: string, currentLine: string = "", numberSections: number = 3) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
@@ -169,6 +151,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			"*3. Calculate the number of days between the start and end dates.\n" +
 			"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
 			"Prompt: \n";
+		var promptSummary = prompt + code + "\nOutput:";
 	} else {
 		var prompt = "Please split the following line of code and explain the unrecognizable vocabulary and structures inside following line of code with less than 10 words.\n" +
 			"Prompt:\n" +
@@ -179,8 +162,8 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			"frames #A list of DataFrames.\n" +
 			"0.5 #The threshold for the link score.\n" +
 			"Prompt:\n";
+		var promptSummary = prompt + (currentLine + code).trim() + "\nOutput:";
 	}
-	var promptSummary = prompt + code + "\nOutput:";
 	console.log(promptSummary);
 	let returnSum = await fetch(url, {
 		method: 'POST',
@@ -235,14 +218,19 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			}
 		} else {
 			var explainArr = data['choices'][0].text.split("\n");
+			var entireLine = currentLine + code;
+			var rangeStart = entireLine.indexOf(code);
+			var rangeEnd = rangeStart + code.length;
 			for (const e of explainArr) {
 				if (e.trim() == "") { continue; }
 				var e_splited = e.split("#");
 				var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, e_splited[1]];
-				var matched = matchColumn(e_splited[0], currentLine + code);
-				newExplain[0] = matched.start;
-				newExplain[1] = matched.end;
-				if (newExplain[0] == -1) {
+				var text = e_splited[0].trim();
+				var longText = entireLine.replace(/\t/g, '    ');
+				newExplain[0] = longText.indexOf(text);
+				newExplain[1] = newExplain[0] + text.length - 1;
+				if (newExplain[0] < rangeStart && newExplain[1] < rangeStart || newExplain[0] >= rangeEnd) {
+					console.log(text, newExplain[0], rangeStart, rangeEnd, e_splited[1]);
 					continue;
 				}
 				lastLine = newExplain[1];
@@ -282,6 +270,7 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 			}
 		}
 		lastLine = newExplain[1];
+		console.log(newExplain);
 		var height = (newExplain[1] - newExplain[0] + 1) * 18 - 2;
 		if (i == 0) {
 			// first bend
