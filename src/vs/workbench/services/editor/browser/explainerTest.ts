@@ -111,6 +111,9 @@ export class Explainer {
 		if (this.box) {
 			this.box.style.top = this._boxOriginalPostion - this._editor.getScrollTop() + "px";
 		}
+		if (this.box?.classList.contains("single")) {
+			this.box.style.left = 66 - this._editor.getScrollLeft() + "px";
+		}
 	}
 
 	private onLayoutChange() {
@@ -221,6 +224,12 @@ export class Explainer {
 			borderDiv = document.getElementById("borderDiv" + currentIdx);
 		if (contentDiv === null || borderDiv === null) return;
 		var colorHue = ["rgb(185,170,135)", "rgb(151,175,189)", "rgb(202,161,163)", "rgb(112,181,201)", "rgb(160,176,153)", "rgb(171,167,207)", "rgb(140,179,171)", "rgb(191,163,189)"];
+		var bendWidth = 100,
+			codeTextRatio = 7.225,
+			labelTextRatio = 5.5,
+			paddingSize = 5;
+		var nextPos = bends[0][0] * codeTextRatio;
+		var numberInLabel = Math.ceil((bendWidth - paddingSize * 2) / labelTextRatio);
 		for (var i = 0; i < bends.length; i++) {
 			var newBend = document.createElement("div"),
 				codeLine = document.createElement("div");
@@ -236,24 +245,49 @@ export class Explainer {
 			codeLine.style.display = 'inline-block';
 			codeLine.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			codeLine.style.boxSizing = 'border-box';
-
-			if (20 > bends[i][2].length) {
-				newBend.style.width = bends[i][2].length * 7.225 + 'px';
-			} else {
-				newBend.style.width = '150px';
-			}
 			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			newBend.style.boxSizing = 'border-box';
 			newBend.innerText = bends[i][2];
 			newBend.style.fontSize = '10px';
 			newBend.style.float = 'left';
-			newBend.style.marginRight = '5px';
+			console.log(nextPos, bends[i][0], bends[i][1], bends[i][2].length);
+			if (numberInLabel > bends[i][2].length) {
+				var labelWidth = bends[i][2].length * labelTextRatio + 10;
+				newBend.style.width = labelWidth + 'px';
+				var diffPos = bends[i][0] * codeTextRatio - nextPos;
+				if (diffPos >= 0) {
+					if (i == 0) {
+						newBend.style.marginLeft = bends[i][0] * codeTextRatio + 'px';
+					} else {
+						newBend.style.marginLeft = diffPos + 'px';
+					}
+					nextPos = bends[i][0] * codeTextRatio + labelWidth;
+				} else {
+					newBend.style.marginLeft = '3px';
+					nextPos = nextPos + 3 + labelWidth;
+				}
+			} else {
+				var labelWidth = bendWidth;
+				newBend.style.width = labelWidth + 'px';
+				var diffPos = bends[i][0] * codeTextRatio - nextPos;
+				if (diffPos >= 0) {
+					if (i == 0) {
+						newBend.style.marginLeft = bends[i][0] * codeTextRatio + 'px';
+					} else {
+						newBend.style.marginLeft = diffPos + 'px';
+					}
+					nextPos = bends[i][0] * codeTextRatio + labelWidth;
+				} else {
+					newBend.style.marginLeft = '3px';
+					nextPos = nextPos + 3 + labelWidth;
+				}
+			}
 			newBend.style.display = 'inline-block';
 			newBend.style.whiteSpace = 'pre-wrap';
 			newBend.style.wordWrap = 'break-word';
-			newBend.style.paddingLeft = '5px';
-			newBend.style.paddingRight = '5px';
+			newBend.style.paddingLeft = paddingSize + 'px';
+			newBend.style.paddingRight = paddingSize + 'px';
 
 			/* newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
 			newBend.style.minHeight = '50px';
@@ -297,7 +331,6 @@ export class Explainer {
 					bend.style.color = "rgb(212,212,212,1)";
 					bend.style.borderTop = '2px solid ' + colorHue[bendIdx % colorHue.length];
 					var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bendIdx);
-					console.log(bendIdx, borderDiv, bend.id);
 					if (codeLineDiv) {
 						codeLineDiv.style.borderTop = '2px solid ' + colorHue[bendIdx % colorHue.length];
 					}
@@ -320,6 +353,9 @@ export class Explainer {
 		this.box = document.createElement('div');
 		this.box.style.position = 'absolute';
 		this.box.className = "explainer-container";
+		if (type == "single") {
+			this.box.classList.add("single");
+		}
 		this.box.style.zIndex = '100';
 		this.box.id = "explainer" + newIdx;
 
