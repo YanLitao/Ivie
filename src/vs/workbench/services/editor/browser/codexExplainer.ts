@@ -230,7 +230,6 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 				newExplain[0] = longText.indexOf(text);
 				newExplain[1] = newExplain[0] + text.length - 1;
 				if (newExplain[0] < rangeStart && newExplain[1] < rangeStart || newExplain[0] >= rangeEnd) {
-					console.log(text, newExplain[0], rangeStart, rangeEnd, e_splited[1]);
 					continue;
 				}
 				lastLine = newExplain[1];
@@ -246,15 +245,26 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 	return returnSum;
 }
 
-function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string]) {
+function animateDots(placeholder: HTMLDivElement) {
+	let dots = '...';
+	setInterval(() => {
+		dots = dots.length < 3 ? dots + '.' : '.';
+		placeholder.textContent = dots;
+	}, 500);
+}
+
+function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string], placeholder: HTMLDivElement) {
 	var eArr: string[] = e.split("\n"),
 		lastLine = 0,
 		regExp = /[a-zA-Z]/g;
 	if (eArr.length >= 2) {
 		var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, ""];
 		var firstLine = eArr.shift();
-		if (firstLine !== undefined) {
+		var codePart = eArr.join("\n");
+		if (firstLine !== undefined && codePart.trim() !== "") {
 			newExplain[2] = firstLine;
+		} else {
+			return;
 		}
 		for (var i = 0; i < eArr.length; i++) {
 			if (regExp.test(eArr[i])) {
@@ -269,8 +279,12 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 				}
 			}
 		}
+		if (newExplain[0] == -1) {
+			return;
+		} else if (newExplain[0] <= lastExplain[1]) {
+			return;
+		}
 		lastLine = newExplain[1];
-		console.log(newExplain);
 		var height = (newExplain[1] - newExplain[0] + 1) * 18 - 2;
 		if (i == 0) {
 			// first bend
@@ -280,7 +294,7 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 		}
 		var text = newExplain[2];
 		var newBend = createBendDiv(height, marginTop, text);
-		div.appendChild(newBend);
+		div.insertBefore(newBend, placeholder);
 		return newExplain;
 	} else {
 		return;
@@ -328,13 +342,18 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 	var eachSnippet = "",
 		lastChar = "",
 		lastExplain: [number, number, string] = [0, 0, ""];
+	var placeholder = document.createElement('div');
+	placeholder.textContent = '...';
+	div.appendChild(placeholder);
+	animateDots(placeholder);
 	while (true) {
 		if (streamReader == null) break;
 		var { done, value } = await streamReader.read();
 		if (done || value == "[DONE]") {
 			if (eachSnippet != "") {
-				buildBendWithStream(div, eachSnippet, code, lastExplain);
+				buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
 			}
+			placeholder.remove();
 			break;
 		}
 		if (value == null) continue;
@@ -345,7 +364,7 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 					var data = JSON.parse(c);
 					var currentChar = data['choices'][0].text;
 					if (lastChar == "\n" && currentChar == "*") {
-						var temp = buildBendWithStream(div, eachSnippet, code, lastExplain);
+						var temp = buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
 						if (temp != undefined) {
 							lastExplain = temp;
 						}
