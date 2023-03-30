@@ -26,16 +26,16 @@ function getStartPos(textArray: string[]) {
 	}
 	var lines = staticsLength(lengthArray);
 	if (lines === undefined) {
-		return 400;
+		return 80 * 7.225;
 	}
 	var median = lines.median,
 		max = lines.max;
 	if (max >= 60 && median >= 60) {
-		return 360;
+		return 60 * 7.225;
 	} else if (max >= 60 && median < 60) {
-		return median * 10;
+		return median * 7.225;
 	} else {
-		return max * 7;
+		return max * 7.225;
 	}
 }
 
@@ -129,7 +129,8 @@ export class Explainer {
 		const activeModel = this._ghostTextController?.activeModel;
 		var ghostText = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines;
 		var generatedCode = ghostText?.join("\n");
-		if (ghostText === undefined || generatedCode === undefined) {
+		if (ghostText === undefined || generatedCode === undefined || generatedCode.trim() == "") {
+			this.disposeExplanations();
 			return;
 		}
 		if (generatedCode.trim() == this._lastGeneratedCode.trim() && this.box !== undefined) {
@@ -149,6 +150,11 @@ export class Explainer {
 		var currentIdx = this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
 		if (this.box === undefined) return;
 		parent[0].insertBefore(this.box, parent[0].firstChild);
+		this.box.addEventListener('click', (event) => {
+			console.log('box clicked');
+			//preventDefault
+			event.preventDefault();
+		});
 		this.onDidScrollChange();
 		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "") {
 			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div) };
@@ -174,10 +180,10 @@ export class Explainer {
 				if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
 					this.createSingleExplainer(value, currentIdx);
 				} else {
-					drawBends(currentIdx, value, this.lineHeight, explainType);
+					drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
 				}
 			} else {
-				drawBends(currentIdx, value, this.lineHeight, explainType);
+				drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
 			}
 		});
 	}
@@ -245,13 +251,14 @@ export class Explainer {
 			codeLine.style.display = 'inline-block';
 			codeLine.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			codeLine.style.boxSizing = 'border-box';
+
 			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			newBend.style.boxSizing = 'border-box';
 			newBend.innerText = bends[i][2];
 			newBend.style.fontSize = '10px';
 			newBend.style.float = 'left';
-			console.log(nextPos, bends[i][0], bends[i][1], bends[i][2].length);
+
 			if (numberInLabel > bends[i][2].length) {
 				var labelWidth = bends[i][2].length * labelTextRatio + 10;
 				newBend.style.width = labelWidth + 'px';
@@ -292,6 +299,42 @@ export class Explainer {
 			/* newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
 			newBend.style.minHeight = '50px';
 			newBend.style.marginLeft = (bends[i][0] - lastIdx - 1) * 7.225 + 'px';*/
+
+			var regenerateBend = document.createElement("div");
+			regenerateBend.className = 'regenerateBend';
+			regenerateBend.id = 'regenerateBend_' + currentIdx + "_" + i;
+			regenerateBend.style.display = 'none';
+			regenerateBend.style.float = 'right';
+			regenerateBend.style.height = '10px';
+			regenerateBend.style.width = '10px';
+			const svgElem = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+			svgElem.setAttribute('width', '10');
+			svgElem.setAttribute('height', '10');
+			svgElem.setAttribute('viewBox', '0 0 24 24');
+
+			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			circle.setAttribute('cx', '12');
+			circle.setAttribute('cy', '12');
+			circle.setAttribute('r', '12');
+			circle.setAttribute('fill', 'white');
+
+			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path2.setAttribute('d', 'M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c-.44.84-.7 1.79-.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z');
+			path2.setAttribute('fill', 'rgb(40, 44, 52)');
+			// Append the paths to the SVG
+			svgElem.appendChild(circle);
+			svgElem.appendChild(path2);
+
+			// Append the SVG and text to the regenerate div
+			regenerateBend.appendChild(svgElem);
+			regenerateBend.style.cursor = 'pointer';
+			newBend.appendChild(regenerateBend);
+
+			regenerateBend.addEventListener('click', (event) => {
+				console.log('regenerateBend clicked' + regenerateBend.id);
+				//preventDefault
+				event.preventDefault();
+			});
 			contentDiv?.appendChild(newBend);
 			borderDiv?.appendChild(codeLine);
 			heighArry.push(newBend.offsetHeight);
@@ -305,6 +348,10 @@ export class Explainer {
 			newBend.addEventListener('mouseover', () => {
 				var bendId = newBend.id;
 				var idx = bendId.split("_")[1];
+				var regenerateBends = newBend.querySelector<HTMLElement>('.regenerateBend');
+				if (regenerateBends) {
+					regenerateBends.style.display = 'block';
+				}
 				var contentDiv = document.getElementById("contentDiv" + idx);
 				var borderDiv = document.getElementById("borderDiv" + idx);
 				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
@@ -325,6 +372,10 @@ export class Explainer {
 			var contentDiv = document.getElementById("contentDiv" + idx);
 			var borderDiv = document.getElementById("borderDiv" + idx);
 			newBend.addEventListener('mouseout', () => {
+				var regenerateBends = newBend.querySelector<HTMLElement>('.regenerateBend');
+				if (regenerateBends) {
+					regenerateBends.style.display = 'none';
+				}
 				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
 					bend.style.backgroundColor = 'rgb(40, 44, 52, 1)';
 					var bendIdx = parseInt(bend.id.split("_")[2]);
@@ -343,7 +394,7 @@ export class Explainer {
 		this.disposeExplanations();
 		var newIdx = this._explainerIdx;
 		var eachLine = diff.split("\n");
-		this._boxRange = [startLine, startLine + generatedCodeLength - 2];
+		this._boxRange = [startLine, startLine + generatedCodeLength - 1];
 		if (this.editorDiv === null) {
 			throw new Error('Cannot find Monaco Editor');
 		}

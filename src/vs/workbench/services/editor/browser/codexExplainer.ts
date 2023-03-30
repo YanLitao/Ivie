@@ -1,21 +1,29 @@
-function createBendDiv(height: number, marginTop: number, text: string) {
+function createBendDiv(height: number, marginTop: number, text: string, contentWidth: number) {
 	var newBend = document.createElement('div');
 	newBend.className = 'bend';
 	newBend.style.height = String(height) + 'px';
 	//newBend.style.lineHeight = String(height) + 'px';
 	//newBend.style.display = 'block';
+	newBend.style.width = String(contentWidth) + 'px';
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
 	newBend.style.backgroundColor = 'rgb(30, 30, 30, 1)'; //132,194,214,0.2
-	newBend.style.borderLeft = '2px solid white';
+	newBend.style.borderLeft = '1px solid white';
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
 	newBend.style.paddingRight = '5px';
+	newBend.style.color = '#abb2bf';
+	newBend.style.fontWeight = '100';
 	newBend.innerText = text;
+	newBend.style.whiteSpace = 'nowrap';
+	newBend.style.overflow = 'hidden';
+	newBend.style.textOverflow = 'ellipsis';
+	newBend.style.setProperty('-webkit-line-clamp', '3');
+	newBend.setAttribute('title', text);
 	return newBend;
 }
 
-export function drawBends(currentIdx: number, bends: [number, number, string][], lineHeight: number, type: string) {
+export function drawBends(currentIdx: number, bends: [number, number, string][], lineHeight: number, type: string, contentWidth: number) {
 	var div = document.getElementById('contentDiv' + currentIdx);
 	if (!div) return;
 	var whiteSpace = 2;
@@ -29,7 +37,7 @@ export function drawBends(currentIdx: number, bends: [number, number, string][],
 				var marginTop = (bends[i][0] - bends[i - 1][1] - 1) * lineHeight + whiteSpace;
 			}
 			var text = bends[i][2];
-			var newBend = createBendDiv(height, marginTop, text);
+			var newBend = createBendDiv(height, marginTop, text, contentWidth);
 			div.appendChild(newBend);
 		}
 	} else {
@@ -226,6 +234,12 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 				var e_splited = e.split("#");
 				var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, e_splited[1]];
 				var text = e_splited[0].trim();
+				if (text[0] == "'" || text[0] == '"') {
+					text = text.slice(1);
+				}
+				if (text[text.length - 1] == "'" || text[text.length - 1] == '"') {
+					text = text.slice(0, text.length - 1);
+				}
 				var longText = entireLine.replace(/\t/g, '    ');
 				newExplain[0] = longText.indexOf(text);
 				newExplain[1] = newExplain[0] + text.length - 1;
@@ -250,7 +264,7 @@ function animateDots(placeholder: HTMLDivElement) {
 	setInterval(() => {
 		dots = dots.length < 3 ? dots + '.' : '.';
 		placeholder.textContent = dots;
-	}, 500);
+	}, 300);
 }
 
 function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string], placeholder: HTMLDivElement) {
@@ -293,7 +307,7 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 			var marginTop = (newExplain[0] - lastExplain[1] - 1) * 18 + 2;
 		}
 		var text = newExplain[2];
-		var newBend = createBendDiv(height, marginTop, text);
+		var newBend = createBendDiv(height, marginTop, text, div.offsetWidth);
 		div.insertBefore(newBend, placeholder);
 		return newExplain;
 	} else {
@@ -344,6 +358,9 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 		lastExplain: [number, number, string] = [0, 0, ""];
 	var placeholder = document.createElement('div');
 	placeholder.textContent = '...';
+	placeholder.style.paddingLeft = '5px';
+	placeholder.style.marginTop = '2px';
+	placeholder.style.borderLeft = '1px solid white';
 	div.appendChild(placeholder);
 	animateDots(placeholder);
 	while (true) {
