@@ -8,17 +8,19 @@ function createBendDiv(height: number, marginTop: number, text: string, contentW
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
 	newBend.style.backgroundColor = 'rgb(30, 30, 30, 1)'; //132,194,214,0.2
-	newBend.style.borderLeft = '1px solid white';
+	newBend.style.borderLeft = '1.5px solid white';
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
 	newBend.style.paddingRight = '5px';
 	newBend.style.color = '#abb2bf';
-	newBend.style.fontWeight = '100';
+	newBend.style.fontWeight = '300';
+	newBend.style.fontSize = '12px';
 	newBend.innerText = text;
-	newBend.style.whiteSpace = 'nowrap';
-	newBend.style.overflow = 'hidden';
-	newBend.style.textOverflow = 'ellipsis';
-	newBend.style.setProperty('-webkit-line-clamp', '3');
+	if (height < 20) {
+		newBend.style.whiteSpace = 'nowrap';
+		newBend.style.overflow = 'hidden';
+		newBend.style.textOverflow = 'ellipsis';
+	}
 	newBend.setAttribute('title', text);
 	return newBend;
 }
@@ -360,7 +362,7 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 	placeholder.textContent = '...';
 	placeholder.style.paddingLeft = '5px';
 	placeholder.style.marginTop = '2px';
-	placeholder.style.borderLeft = '1px solid white';
+	placeholder.style.borderLeft = '1.5px solid white';
 	div.appendChild(placeholder);
 	animateDots(placeholder);
 	while (true) {
