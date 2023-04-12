@@ -7,6 +7,7 @@ function createBendDiv(height: number, marginTop: number, text: string, contentW
 	newBend.style.width = String(contentWidth) + 'px';
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
+	//newBend.style.marginBottom = String(marginTop) + 'px';
 	newBend.style.backgroundColor = 'rgb(30, 30, 30, 1)'; //132,194,214,0.2
 	newBend.style.borderLeft = '1.5px solid white';
 	newBend.style.boxSizing = 'border-box';
@@ -399,3 +400,41 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 		}
 	}
 }
+
+export async function regenerateExplanation(code: string, text: string, div: HTMLDivElement) {
+	const prompt = "Regenerate the explanation for " + text + " in the below code snippet.\n" + code;
+	const apiUrl = "https://api.openai.com/v1/engines/davinci-codex/completions";
+	const headers = {
+		"Content-Type": "application/json",
+		"Authorization": `Bearer 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`,
+	};
+
+	const body = {
+		prompt: prompt,
+		max_tokens: 50,
+		n: 1,
+		stop: null,
+		temperature: 1,
+	};
+
+	try {
+		const response = await fetch(apiUrl, {
+			method: "POST",
+			headers: headers,
+			body: JSON.stringify(body),
+		});
+
+		if (!response.ok) {
+			throw new Error(`API request failed with status ${response.status}`);
+		}
+
+		const data = await response.json();
+		const generatedText = data.choices[0].text;
+		div.innerText = generatedText;
+		console.log("Generated text:", generatedText);
+	} catch (error) {
+		console.error("Error calling ChatGPT API:", error);
+	}
+}
+
+

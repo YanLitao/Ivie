@@ -19,6 +19,19 @@ const staticsLength = (arr: number[]): { median: number; mean: number; min: numb
 	return { median, mean, min, max };
 };
 
+function isComment(line: string) {
+	if (line.trim().startsWith("#")) return true;
+	if (line.trim().startsWith("'''")) return true;
+	if (line.trim().startsWith('"""')) return true;
+	if (line.trim().startsWith("//")) return true;
+	if (line.trim().startsWith("/*")) return true;
+	if (line.trim().startsWith("*")) return true;
+	if (line.trim().startsWith("*/")) return true;
+	if (line.trim().startsWith("<!--")) return true;
+	if (line.trim().startsWith("-->")) return true;
+	return false;
+}
+
 function getStartPos(textArray: string[]) {
 	var lengthArray = [];
 	for (var i = 0; i < textArray.length; i++) {
@@ -28,12 +41,9 @@ function getStartPos(textArray: string[]) {
 	if (lines === undefined) {
 		return 80 * 7.225;
 	}
-	var median = lines.median,
-		max = lines.max;
-	if (max >= 60 && median >= 60) {
-		return 60 * 7.225;
-	} else if (max >= 60 && median < 60) {
-		return median * 7.225;
+	var max = lines.max;
+	if (max >= 80) {
+		return 80 * 7.225;
 	} else {
 		return max * 7.225;
 	}
@@ -144,20 +154,17 @@ export class Explainer {
 		var parent = this.editorDiv.getElementsByClassName("overflow-guard");
 		if (ghostText.length == 1) {
 			var explainType = 'single';
+			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
+			if (isComment(this_line)) return;
 		} else {
 			var explainType = 'multi';
 		}
 		var currentIdx = this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
 		if (this.box === undefined) return;
 		parent[0].insertBefore(this.box, parent[0].firstChild);
-		this.box.addEventListener('click', (event) => {
-			console.log('box clicked');
-			//preventDefault
-			event.preventDefault();
-		});
 		this.onDidScrollChange();
-		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "") {
-			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div) };
+		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "", numberSections: number = 1) {
+			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div, numberSections) };
 			if (multiLineStreamFlag == false || type == "single") {
 				var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
 			}
@@ -169,7 +176,21 @@ export class Explainer {
 			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
 		} else {
-			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag);
+			var numberSections = 3,
+				realCode = 0;
+			generatedCode.split("\n").forEach((line) => {
+				if (isComment(line) == false) {
+					realCode += 1;
+				}
+			});
+			if (realCode > 12) {
+				var numberSections = Math.ceil(realCode / 4);
+			} else if (realCode > 4) {
+				var numberSections = 3;
+			} else {
+				var numberSections = 2;
+			}
+			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, "", numberSections);
 		}
 		this._summaryArr.then((value) => {
 			if (this.contentDiv === undefined) return;
@@ -296,11 +317,7 @@ export class Explainer {
 			newBend.style.paddingLeft = paddingSize + 'px';
 			newBend.style.paddingRight = paddingSize + 'px';
 
-			/* newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
-			newBend.style.minHeight = '50px';
-			newBend.style.marginLeft = (bends[i][0] - lastIdx - 1) * 7.225 + 'px';*/
-
-			var regenerateBend = document.createElement("div");
+			/* var regenerateBend = document.createElement("div");
 			regenerateBend.className = 'regenerateBend';
 			regenerateBend.id = 'regenerateBend_' + currentIdx + "_" + i;
 			regenerateBend.style.display = 'none';
@@ -317,10 +334,12 @@ export class Explainer {
 			circle.setAttribute('cy', '12');
 			circle.setAttribute('r', '12');
 			circle.setAttribute('fill', 'white');
+			circle.setAttribute('id', 'circle_' + currentIdx + "_" + i);
 
 			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path2.setAttribute('d', 'M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c-.44.84-.7 1.79-.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z');
 			path2.setAttribute('fill', 'rgb(40, 44, 52)');
+			path2.setAttribute('id', 'path_' + currentIdx + "_" + i);
 			// Append the paths to the SVG
 			svgElem.appendChild(circle);
 			svgElem.appendChild(path2);
@@ -328,13 +347,8 @@ export class Explainer {
 			// Append the SVG and text to the regenerate div
 			regenerateBend.appendChild(svgElem);
 			regenerateBend.style.cursor = 'pointer';
-			newBend.appendChild(regenerateBend);
+			newBend.appendChild(regenerateBend); */
 
-			regenerateBend.addEventListener('click', (event) => {
-				console.log('regenerateBend clicked' + regenerateBend.id);
-				//preventDefault
-				event.preventDefault();
-			});
 			contentDiv?.appendChild(newBend);
 			borderDiv?.appendChild(codeLine);
 			heighArry.push(newBend.offsetHeight);
@@ -366,11 +380,6 @@ export class Explainer {
 					}
 				});
 			});
-		});
-		contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((newBend) => {
-			var idx = newBend.id.split("_")[1];
-			var contentDiv = document.getElementById("contentDiv" + idx);
-			var borderDiv = document.getElementById("borderDiv" + idx);
 			newBend.addEventListener('mouseout', () => {
 				var regenerateBends = newBend.querySelector<HTMLElement>('.regenerateBend');
 				if (regenerateBends) {
@@ -388,6 +397,13 @@ export class Explainer {
 				});
 			});
 		});
+		/* contentDiv.querySelectorAll<HTMLElement>('.regenerateBend').forEach((regenerateDiv) => {
+			regenerateDiv.addEventListener('mouseover', (event) => {
+				var target = event.target as HTMLElement;
+				var bendDiv = document.getElementById("bend_" + target?.id.split("_")[1] + "_" + target?.id.split("_")[2]);
+				console.log(target, target?.id, bendDiv?.innerText);
+			});
+		}); */
 	}
 
 	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
@@ -431,7 +447,7 @@ export class Explainer {
 			this.borderDiv.style.height = generateLine * this.lineHeight + 'px';
 			this.borderDiv.style.float = 'left';
 			this.borderDiv.style.width = '30px';
-			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
+			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(30, 30, 30, 0), rgba(30, 30, 30, 1) 100%)';//60, 60, 60
 			this.contentDiv.style.height = generateLine * this.lineHeight + 'px';
 			this.contentDiv.style.width = explainWidth - 30 + 'px';
 			this.contentDiv.style.float = 'right';
@@ -457,12 +473,12 @@ export class Explainer {
 					}
 				}
 			});
-			this.borderDiv.addEventListener('mouseover', function (this) {
+			/* this.borderDiv.addEventListener('mouseover', function (this) {
 				this.style.backgroundImage = 'linear-gradient(to right, rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
 			});
 			this.borderDiv.addEventListener('mouseout', function (this) {
 				this.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
-			});
+			}); */
 		}
 		this.box.appendChild(this.contentDiv);
 		return newIdx;
