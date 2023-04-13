@@ -168,10 +168,10 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			"Prompt:\n" +
 			"tr = pandas.concat(pred.link_df_iter(frames, 0.5))\n" +
 			"Output:\n" +
-			"tr = pandas.concat #Concatenate DataFrames.\n" +
-			"pred.link_df_iter #Iterate over a list of DataFrames.\n" +
-			"frames #A list of DataFrames.\n" +
-			"0.5 #The threshold for the link score.\n" +
+			"tr = pandas.concat $#$Concatenate DataFrames.\n" +
+			"pred.link_df_iter $#$Iterate over a list of DataFrames.\n" +
+			"frames $#$A list of DataFrames.\n" +
+			"0.5 $#$The threshold for the link score.\n" +
 			"Prompt:\n";
 		var promptSummary = prompt + (currentLine + code).trim() + "\nOutput:";
 	}
@@ -234,7 +234,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			var rangeEnd = rangeStart + code.length;
 			for (const e of explainArr) {
 				if (e.trim() == "") { continue; }
-				var e_splited = e.split("#");
+				var e_splited = e.split("$#$");
 				var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, e_splited[1]];
 				var text = e_splited[0].trim();
 				if (text[0] == "'" || text[0] == '"') {
@@ -244,7 +244,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 					text = text.slice(0, text.length - 1);
 				}
 				var longText = entireLine.replace(/\t/g, '    ');
-				newExplain[0] = longText.indexOf(text);
+				newExplain[0] = lastLine + longText.slice(lastLine).indexOf(text);
 				newExplain[1] = newExplain[0] + text.length - 1;
 				if (newExplain[0] < rangeStart && newExplain[1] < rangeStart || newExplain[0] >= rangeEnd) {
 					continue;
