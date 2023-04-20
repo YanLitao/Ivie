@@ -1,4 +1,4 @@
-# Project Name
+# AI-assisted code understanding tool for Copilot
 
 Add a brief description of your project here.
 
@@ -24,7 +24,7 @@ To get started with the project, follow these steps:
 1. Clone the repository to your local folder:
 
 ```
-git clone <repository-url>
+git clone https://github.com/YanLitao/copilot_explainer.git
 ```
 
 
