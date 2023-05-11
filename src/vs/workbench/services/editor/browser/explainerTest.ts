@@ -1,9 +1,7 @@
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-//import { IScrollEvent } from 'vs/editor/common/editorCommon';
-
 export function addExplainer() {
 	console.log("added explainer");
 }
@@ -20,6 +18,7 @@ const staticsLength = (arr: number[]): { median: number; mean: number; min: numb
 };
 
 function isComment(line: string) {
+	if (!line.trim()) return true;
 	if (line.trim().startsWith("#")) return true;
 	if (line.trim().startsWith("'''")) return true;
 	if (line.trim().startsWith('"""')) return true;
@@ -55,19 +54,22 @@ export class Explainer {
 		private readonly _editor: ICodeEditor,
 		private editorDiv = _editor.getDomNode(),
 		private box: HTMLDivElement | undefined = undefined,
+		private box2: HTMLDivElement | undefined = undefined,
 		private borderDiv: HTMLDivElement | undefined = undefined,
 		private contentDiv: HTMLDivElement | undefined = undefined,
 		private lineHeight: number,
 		private _boxRange: undefined | [number, number],
 		private _ghostTextController: GhostTextController | null,
 		private _summaryArr: Promise<void | [number, number, string][]>,
+		private _multiSingleExplainPromise: Promise<{ [lineNb: string]: void | [number, number, string][] }>,
+		private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] },
 		//private _expandFlag: boolean,
 		private _boxOriginalPostion: number,
 		private _coloredOneLineFlag: boolean,
 		private _multiLineStreamFlag: boolean,
 		private _disposeFlag: boolean,
 		private _lastGeneratedCode: string,
-		private _explainerIdx: number,
+		private _explainerIdx: number
 	) {
 		this._explainerIdx = 0;
 		this._lastGeneratedCode = "";
@@ -81,6 +83,7 @@ export class Explainer {
 		this._editor.onKeyUp(() => { this.onKeyUp(); });
 		this._editor.onDidDispose(() => { this.dispose(); });
 		this._editor.onMouseDown(() => { this.onMouseDown(); });
+		this._editor.onMouseMove((e: IEditorMouseEvent) => { this.onMouseMove(e); });
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		this._editor.onDidContentSizeChange(() => { this.onContentSizeChange(); });
 		this._ghostTextController = GhostTextController.get(this._editor);
@@ -117,6 +120,25 @@ export class Explainer {
 		}
 	}
 
+	private onMouseMove(mouseEvent: IEditorMouseEvent) {
+		if (mouseEvent.target === null || this._boxRange === undefined || this.box2 === undefined) {
+			return;
+		}
+		console.log(mouseEvent.target);
+		const position = mouseEvent.target.position;
+		if (!position) {
+			return;
+		}
+		if (position.lineNumber < this._boxRange[0] || position.lineNumber > this._boxRange[1]) {
+			this.box2.style.display = "none";
+			this.box2.innerHTML = "";
+			return;
+		} else {
+			this.box2.style.top = (position.lineNumber - 1) * this.lineHeight + 16 + 'px';
+			this.box2.style.display = "block";
+		}
+	}
+
 	private onDidScrollChange() {
 		if (this.box) {
 			this.box.style.top = this._boxOriginalPostion - this._editor.getScrollTop() + "px";
@@ -132,6 +154,37 @@ export class Explainer {
 
 	private onContentSizeChange() {
 		//console.log(this._editor.getContentWidth());
+	}
+
+	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "", numberSections: number = 1) {
+		if (type == "multi" && multiLineStreamFlag) {
+			OpenaiStreamAPI(text, div, numberSections);
+			var eachLine = text.split("\n");
+			for (var i = 0; i < eachLine.length; i++) {
+				var lineTrimed = eachLine[i].trim();
+				if (lineTrimed == undefined || isComment(lineTrimed)) continue;
+				var summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single", eachLine[i]);
+				console.log(summaryArrEach);
+			}
+		};
+		if (multiLineStreamFlag == false || type == "single") {
+			var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
+		}
+		return summaryArr;
+	}
+
+	private async getExplain2(text: string, div: HTMLDivElement, currentLine: number, numberSections: number = 1) {
+		OpenaiStreamAPI(text, div, numberSections);
+		let summaryLines: Record<string, void | [number, number, string][]> = {};
+		const eachLine = text.split("\n");
+		for (let i = 0; i < eachLine.length; i++) {
+			let lineTrimed = eachLine[i].trim();
+			if (lineTrimed == undefined || isComment(lineTrimed)) continue;
+			let summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single", eachLine[i]);
+			let lineNb = String(currentLine + i); // Assuming currentLine is defined elsewhere
+			summaryLines[lineNb] = summaryArrEach;
+		}
+		return summaryLines;
 	}
 
 	private ghostTextChange() {
@@ -155,7 +208,9 @@ export class Explainer {
 		if (ghostText.length == 1) {
 			var explainType = 'single';
 			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
-			if (isComment(this_line)) return;
+			if (isComment(this_line)) {
+				return;
+			};
 		} else {
 			var explainType = 'multi';
 		}
@@ -163,19 +218,14 @@ export class Explainer {
 		if (this.box === undefined) return;
 		parent[0].insertBefore(this.box, parent[0].firstChild);
 		this.onDidScrollChange();
-		async function getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "", numberSections: number = 1) {
-			if (type == "multi" && multiLineStreamFlag) { OpenaiStreamAPI(text, div, numberSections) };
-			if (multiLineStreamFlag == false || type == "single") {
-				var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
-			}
-			return summaryArr;
-		}
+
 		if (this.contentDiv === undefined) return;
 
 		if (explainType == "single") {
 			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
-			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
+			this._summaryArr = this.getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
 		} else {
+			this.createSingleInMultiExplainer(parent[0]);
 			var numberSections = 3,
 				realCode = 0;
 			generatedCode.split("\n").forEach((line) => {
@@ -190,8 +240,12 @@ export class Explainer {
 			} else {
 				var numberSections = 2;
 			}
-			this._summaryArr = getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, "", numberSections);
+			this._multiSingleExplainPromise = this.getExplain2(generatedCode, this.contentDiv, mousePos.lineNumber, numberSections);
 		}
+		this._multiSingleExplainPromise.then((data) => {
+			this._multiSingleExplain = data;
+			console.log(this._multiSingleExplain);
+		});
 		this._summaryArr.then((value) => {
 			if (this.contentDiv === undefined) return;
 			if (value === undefined) {
@@ -313,41 +367,8 @@ export class Explainer {
 			}
 			newBend.style.display = 'inline-block';
 			newBend.style.whiteSpace = 'pre-wrap';
-			newBend.style.wordWrap = 'break-word';
 			newBend.style.paddingLeft = paddingSize + 'px';
 			newBend.style.paddingRight = paddingSize + 'px';
-
-			/* var regenerateBend = document.createElement("div");
-			regenerateBend.className = 'regenerateBend';
-			regenerateBend.id = 'regenerateBend_' + currentIdx + "_" + i;
-			regenerateBend.style.display = 'none';
-			regenerateBend.style.float = 'right';
-			regenerateBend.style.height = '10px';
-			regenerateBend.style.width = '10px';
-			const svgElem = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-			svgElem.setAttribute('width', '10');
-			svgElem.setAttribute('height', '10');
-			svgElem.setAttribute('viewBox', '0 0 24 24');
-
-			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-			circle.setAttribute('cx', '12');
-			circle.setAttribute('cy', '12');
-			circle.setAttribute('r', '12');
-			circle.setAttribute('fill', 'white');
-			circle.setAttribute('id', 'circle_' + currentIdx + "_" + i);
-
-			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path2.setAttribute('d', 'M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c-.44.84-.7 1.79-.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z');
-			path2.setAttribute('fill', 'rgb(40, 44, 52)');
-			path2.setAttribute('id', 'path_' + currentIdx + "_" + i);
-			// Append the paths to the SVG
-			svgElem.appendChild(circle);
-			svgElem.appendChild(path2);
-
-			// Append the SVG and text to the regenerate div
-			regenerateBend.appendChild(svgElem);
-			regenerateBend.style.cursor = 'pointer';
-			newBend.appendChild(regenerateBend); */
 
 			contentDiv?.appendChild(newBend);
 			borderDiv?.appendChild(codeLine);
@@ -406,6 +427,20 @@ export class Explainer {
 		}); */
 	}
 
+	private createSingleInMultiExplainer(parent: Element) {
+		this.box2 = document.createElement('div');
+		this.box2.id = "single_container_in_multi";
+		this.box2.style.position = 'absolute';
+		this.box2.style.zIndex = '100';
+		this.box2.style.top = 500 + 'px';
+		this.box2.style.left = '66px';
+		this.box2.style.width = '1500px';
+		this.box2.style.height = '100px';
+		this.box2.style.backgroundColor = 'white';
+		this.box2.style.display = "none";
+		parent.insertBefore(this.box2, parent.firstChild);
+	}
+
 	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
 		this.disposeExplanations();
 		var newIdx = this._explainerIdx;
@@ -425,6 +460,7 @@ export class Explainer {
 		}
 		this.box.style.zIndex = '100';
 		this.box.id = "explainer" + newIdx;
+
 
 		this.borderDiv = document.createElement('div');
 		this.borderDiv.id = "borderDiv" + newIdx;
