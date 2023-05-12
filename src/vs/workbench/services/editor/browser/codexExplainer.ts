@@ -8,7 +8,7 @@ function createBendDiv(height: number, marginTop: number, text: string, contentW
 	newBend.style.verticalAlign = 'middle';
 	newBend.style.marginTop = String(marginTop) + 'px';
 	//newBend.style.marginBottom = String(marginTop) + 'px';
-	newBend.style.backgroundColor = 'rgb(30, 30, 30, 1)'; //132,194,214,0.2
+	newBend.style.backgroundColor = 'rgb(37, 40, 57, 1)'; //132,194,214,0.2
 	newBend.style.borderLeft = '1.5px solid white';
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
@@ -52,7 +52,7 @@ export function drawBends(currentIdx: number, bends: [number, number, string][],
 			newBend.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
 			newBend.style.minHeight = '50px';
 			newBend.style.marginLeft = (bends[i][0] - lastIndex - 1) * 7.225 + 'px';
-			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
+			newBend.style.backgroundColor = 'rgb(37, 40, 57, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid white';
 			newBend.style.boxSizing = 'border-box';
 			newBend.innerText = bends[i][2];

@@ -131,24 +131,25 @@ export class Explainer {
 		if (this.contentDivMulti === undefined || this.borderDivMulti === undefined) {
 			return;
 		}
-		//console.log(mouseEvent.target);
-		const position = mouseEvent.target.position;
-		if (!position) {
+		var target = mouseEvent.target.element;
+		if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
+			this.box2.style.display = "block";
 			return;
 		}
-		//console.log(document.getElementById("placeholderMulti"));
-		if (position.lineNumber < this._boxRange[0] || position.lineNumber > this._boxRange[1]) {
+		var PosY = mouseEvent.event.posy;
+		var realLineNum = Math.ceil((PosY - 85) / 18);
+		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			this.box2.style.display = "none";
 			return;
-		} else if (this._lastHoveredBend !== position.lineNumber || document.getElementById("placeholderMulti") !== null) {
-			this._lastHoveredBend = position.lineNumber;
+		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
+			this._lastHoveredBend = realLineNum;
 			this.createSingleInMultiExplainer(this.parent[0]);
-			this.box2.style.top = (position.lineNumber - 1) * this.lineHeight + 16 + 'px';
-			var lineNb = String(position.lineNumber);
+			this.box2.style.top = (realLineNum - 1) * this.lineHeight + 16 + 'px';
+			var lineNb = String(realLineNum);
 			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
 				var explainArr = this._multiSingleExplain[lineNb];
 				if (explainArr !== undefined) {
-					this.createSingleExplainer(explainArr, position.lineNumber, this.contentDivMulti, this.borderDivMulti);
+					this.createSingleExplainer(explainArr, realLineNum, this.contentDivMulti, this.borderDivMulti);
 				}
 			}
 			this.box2.style.display = "block";
@@ -361,7 +362,7 @@ export class Explainer {
 			codeLine.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			codeLine.style.boxSizing = 'border-box';
 
-			newBend.style.backgroundColor = 'rgb(40, 44, 52, 1)'; //132,194,214,0.2
+			newBend.style.backgroundColor = 'rgb(37, 40, 57, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			newBend.style.boxSizing = 'border-box';
 			newBend.innerText = bends[i][2];
@@ -416,17 +417,14 @@ export class Explainer {
 		contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((newBend) => {
 			newBend.addEventListener('mouseover', () => {
 				var bendId = newBend.id;
-				var idx = bendId.split("_")[1];
 				var regenerateBends = newBend.querySelector<HTMLElement>('.regenerateBend');
 				if (regenerateBends) {
 					regenerateBends.style.display = 'block';
 				}
-				var contentDiv = document.getElementById("contentDiv" + idx);
-				var borderDiv = document.getElementById("borderDiv" + idx);
 				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
 					if (bend.id !== bendId) {
-						bend.style.backgroundColor = 'rgb(40, 44, 52, 0.8)';
-						bend.style.color = "rgb(60, 60, 60, 0.6)";
+						bend.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
+						bend.style.color = "rgb(60, 60, 60, 0.8)";
 						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.8)';
 						var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bend.id.split("_")[2]);
 						if (codeLineDiv) {
@@ -441,7 +439,7 @@ export class Explainer {
 					regenerateBends.style.display = 'none';
 				}
 				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
-					bend.style.backgroundColor = 'rgb(40, 44, 52, 1)';
+					bend.style.backgroundColor = 'rgb(37, 40, 57, 1)';
 					var bendIdx = parseInt(bend.id.split("_")[2]);
 					bend.style.color = "rgb(212,212,212,1)";
 					bend.style.borderTop = '2px solid ' + colorHue[bendIdx % colorHue.length];
@@ -471,23 +469,27 @@ export class Explainer {
 
 		this.box2 = document.createElement('div');
 		this.box2.id = "single_container_in_multi";
+		this.box2.className = "MultiSingleExplainer";
 		this.box2.style.position = 'absolute';
-		this.box2.style.zIndex = '100';
+		this.box2.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
 		this.box2.style.top = 500 + 'px';
 		this.box2.style.left = '66px';
 		this.box2.style.width = '1500px';
 		this.box2.style.height = '100px';
 		this.box2.style.display = "none";
+		this.box2.style.zIndex = '110';
 
 		this.borderDivMulti = document.createElement('div');
 		this.borderDivMulti.id = "borderDivMulti";
+		this.borderDivMulti.className = "MultiSingleExplainer";
 		this.borderDivMulti.style.width = '1500px';
 		this.borderDivMulti.style.height = '3px';
 		this.box2.appendChild(this.borderDivMulti);
 
 		this.contentDivMulti = document.createElement('div');
 		this.contentDivMulti.id = "contentDivMulti";
-		this.contentDivMulti.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
+		this.contentDivMulti.className = "MultiSingleExplainer";
+		this.contentDivMulti.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 		this.contentDivMulti.style.boxSizing = 'border-box';
 		this.contentDivMulti.style.display = 'block';
 		this.contentDivMulti.style.width = '1500px';
@@ -531,7 +533,7 @@ export class Explainer {
 
 		this.contentDiv = document.createElement('div');
 		this.contentDiv.id = "contentDiv" + newIdx;
-		this.contentDiv.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
+		this.contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 		this.contentDiv.style.boxSizing = 'border-box';
 		this.contentDiv.style.display = 'block';
 
@@ -547,7 +549,7 @@ export class Explainer {
 			this.borderDiv.style.height = generateLine * this.lineHeight + 'px';
 			this.borderDiv.style.float = 'left';
 			this.borderDiv.style.width = '30px';
-			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(30, 30, 30, 0), rgba(30, 30, 30, 1) 100%)';//60, 60, 60
+			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(37, 40, 57, 0), rgba(37, 40, 57, 1) 100%)';//60, 60, 60
 			this.contentDiv.style.height = generateLine * this.lineHeight + 'px';
 			this.contentDiv.style.width = explainWidth - 30 + 'px';
 			this.contentDiv.style.float = 'right';
