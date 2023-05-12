@@ -1,6 +1,6 @@
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI } from 'vs/workbench/services/editor/browser/codexExplainer';
+import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 export function addExplainer() {
 	console.log("added explainer");
@@ -64,7 +64,6 @@ export class Explainer {
 		private _boxRange: undefined | [number, number],
 		private _ghostTextController: GhostTextController | null,
 		private _summaryArr: Promise<void | [number, number, string][]>,
-		private _multiSingleExplainPromise: Promise<{ [lineNb: string]: void | [number, number, string][] }>,
 		private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] },
 		//private _expandFlag: boolean,
 		private _boxOriginalPostion: number,
@@ -137,10 +136,11 @@ export class Explainer {
 		if (!position) {
 			return;
 		}
+		//console.log(document.getElementById("placeholderMulti"));
 		if (position.lineNumber < this._boxRange[0] || position.lineNumber > this._boxRange[1]) {
 			this.box2.style.display = "none";
 			return;
-		} else if (this._lastHoveredBend !== position.lineNumber || this.contentDivMulti.innerHTML == "") {
+		} else if (this._lastHoveredBend !== position.lineNumber || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = position.lineNumber;
 			this.createSingleInMultiExplainer(this.parent[0]);
 			this.box2.style.top = (position.lineNumber - 1) * this.lineHeight + 16 + 'px';
@@ -174,25 +174,24 @@ export class Explainer {
 		//console.log(this._editor.getContentWidth());
 	}
 
-	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', currentLine: string = "", numberSections: number = 1) {
+	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', numberSections: number = 1) {
 		if (type == "multi" && multiLineStreamFlag) {
 			OpenaiStreamAPI(text, div, numberSections);
 			var eachLine = text.split("\n");
 			for (var i = 0; i < eachLine.length; i++) {
 				var lineTrimed = eachLine[i].trim();
 				if (lineTrimed == undefined || isComment(lineTrimed)) continue;
-				var summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single", eachLine[i]);
+				var summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single");
 				console.log(summaryArrEach);
 			}
 		};
 		if (multiLineStreamFlag == false || type == "single") {
-			var summaryArr = await OpenaiFetchAPI(text, type, currentLine);
+			var summaryArr = await OpenaiFetchAPI(text, type);
 		}
 		return summaryArr;
 	}
 
-	private async getExplain2(text: string, div: HTMLDivElement, currentLine: number, numberSections: number = 1) {
-		OpenaiStreamAPI(text, div, numberSections);
+	/* private async getExplain2(text: string, div: HTMLDivElement, currentLine: number, numberSections: number = 1) {
 		let summaryLines: Record<string, void | [number, number, string][]> = {};
 		const eachLine = text.split("\n");
 		for (let i = 0; i < eachLine.length; i++) {
@@ -203,7 +202,7 @@ export class Explainer {
 			summaryLines[lineNb] = summaryArrEach;
 		}
 		return summaryLines;
-	}
+	} */
 
 	private ghostTextChange() {
 		if (this._disposeFlag == false) return;
@@ -224,6 +223,7 @@ export class Explainer {
 		if (this.editorDiv === null) return;
 		this.parent = this.editorDiv.getElementsByClassName("overflow-guard");
 		var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
+		generatedCode = this_line + generatedCode;
 		if (ghostText.length == 1) {
 			var explainType = 'single';
 			if (isComment(this_line)) {
@@ -240,7 +240,7 @@ export class Explainer {
 		if (this.contentDiv === undefined) return;
 
 		if (explainType == "single") {
-			this._summaryArr = this.getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
+			this._summaryArr = this.getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType);
 			this._summaryArr.then((value) => {
 				if (this.contentDiv === undefined) return;
 				if (value === undefined) {
@@ -257,14 +257,23 @@ export class Explainer {
 				}
 			});
 		} else {
+			this._multiSingleExplain = {};
 			this.createSingleInMultiExplainer(this.parent[0]);
 			var numberSections = 3,
 				realCode = 0;
-			generatedCode.split("\n").forEach((line) => {
-				if (isComment(line) == false) {
+			var splitLines = generatedCode.split("\n");
+			for (var i = 0; i < splitLines.length; i++) {
+				if (isComment(splitLines[i]) == false) {
 					realCode += 1;
+					let lineNb = String(mousePos.lineNumber + i);
+					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
+					summaryArrEach.then((value) => {
+						if (value) {
+							this._multiSingleExplain[lineNb] = value;
+						}
+					});
 				}
-			});
+			}
 			if (realCode > 12) {
 				var numberSections = Math.ceil(realCode / 4);
 			} else if (realCode > 4) {
@@ -273,11 +282,7 @@ export class Explainer {
 				var numberSections = 2;
 			}
 			generatedCode = this_line + generatedCode;
-			this._multiSingleExplainPromise = this.getExplain2(generatedCode, this.contentDiv, mousePos.lineNumber, numberSections);
-			this._multiSingleExplainPromise.then((data) => {
-				this._multiSingleExplain = data;
-				console.log(this._multiSingleExplain);
-			});
+			OpenaiStreamAPI(generatedCode, this.contentDiv, numberSections);
 		}
 	}
 
@@ -323,6 +328,9 @@ export class Explainer {
 			var contentDivTemp = document.getElementById("contentDiv" + currentIdx);
 			if (contentDivTemp === null) return;
 			contentDiv = contentDivTemp;
+		} else {
+			// remove the placeholder inside contenDiv
+			document.getElementById("placeholderMulti")?.remove();
 		}
 		if (borderDiv === undefined) {
 			var borderDivTemp = document.getElementById("borderDiv" + currentIdx);
@@ -417,12 +425,12 @@ export class Explainer {
 				var borderDiv = document.getElementById("borderDiv" + idx);
 				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
 					if (bend.id !== bendId) {
-						bend.style.backgroundColor = 'rgb(40, 44, 52, 0.6)';
+						bend.style.backgroundColor = 'rgb(40, 44, 52, 0.8)';
 						bend.style.color = "rgb(60, 60, 60, 0.6)";
-						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
+						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.8)';
 						var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bend.id.split("_")[2]);
 						if (codeLineDiv) {
-							codeLineDiv.style.borderTop = '2px solid rgb(60, 60, 60, 0.6)';
+							codeLineDiv.style.borderTop = '2px solid rgb(60, 60, 60, 0.8)';
 						}
 					}
 				});
@@ -483,6 +491,16 @@ export class Explainer {
 		this.contentDivMulti.style.boxSizing = 'border-box';
 		this.contentDivMulti.style.display = 'block';
 		this.contentDivMulti.style.width = '1500px';
+
+		var placeholder = document.createElement('div');
+		placeholder.id = "placeholderMulti";
+		placeholder.textContent = '...';
+		placeholder.style.paddingLeft = '5px';
+		placeholder.style.marginTop = '2px';
+		placeholder.style.borderLeft = '1.5px solid white';
+		this.contentDivMulti.appendChild(placeholder);
+		animateDots(placeholder);
+
 		this.box2.appendChild(this.contentDivMulti);
 		parent.insertBefore(this.box2, parent.firstChild);
 	}
@@ -581,6 +599,18 @@ export class Explainer {
 			if (this.contentDiv) {
 				this.contentDiv.remove();
 				this.contentDiv = undefined;
+			}
+			if (this.box2) {
+				this.box2.remove();
+				this.box2 = undefined;
+			}
+			if (this.borderDivMulti) {
+				this.borderDivMulti.remove();
+				this.borderDivMulti = undefined;
+			}
+			if (this.contentDivMulti) {
+				this.contentDivMulti.remove();
+				this.contentDivMulti = undefined;
 			}
 			this._explainerIdx += 1;
 		}

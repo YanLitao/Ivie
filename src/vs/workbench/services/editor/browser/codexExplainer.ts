@@ -145,7 +145,7 @@ export function matchLongText(text: string, longText: string) {
 	}
 } */
 
-export async function OpenaiFetchAPI(code: string, explainType: string, currentLine: string = "", numberSections: number = 3) {
+export async function OpenaiFetchAPI(code: string, explainType: string, numberSections: number = 3) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
 	if (explainType == "multi") {
@@ -173,7 +173,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			"frames $#$A list of DataFrames.\n" +
 			"0.5 $#$The threshold for the link score.\n" +
 			"Prompt:\n";
-		var promptSummary = prompt + (currentLine + code).trim() + "\nOutput:";
+		var promptSummary = prompt + code.trim() + "\nOutput:";
 	}
 	console.log(promptSummary);
 	let returnSum = await fetch(url, {
@@ -229,7 +229,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 			}
 		} else {
 			var explainArr = data['choices'][0].text.split("\n");
-			var entireLine = currentLine + code;
+			var entireLine = code;
 			var rangeStart = entireLine.indexOf(code);
 			var rangeEnd = rangeStart + code.length;
 			for (const e of explainArr) {
@@ -262,7 +262,7 @@ export async function OpenaiFetchAPI(code: string, explainType: string, currentL
 	return returnSum;
 }
 
-function animateDots(placeholder: HTMLDivElement) {
+export function animateDots(placeholder: HTMLDivElement) {
 	let dots = '...';
 	setInterval(() => {
 		dots = dots.length < 3 ? dots + '.' : '.';
