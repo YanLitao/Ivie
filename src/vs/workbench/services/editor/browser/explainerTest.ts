@@ -53,10 +53,13 @@ export class Explainer {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private editorDiv = _editor.getDomNode(),
+		private parent: HTMLCollectionOf<Element>,
 		private box: HTMLDivElement | undefined = undefined,
 		private box2: HTMLDivElement | undefined = undefined,
 		private borderDiv: HTMLDivElement | undefined = undefined,
 		private contentDiv: HTMLDivElement | undefined = undefined,
+		private borderDivMulti: HTMLDivElement | undefined = undefined,
+		private contentDivMulti: HTMLDivElement | undefined = undefined,
 		private lineHeight: number,
 		private _boxRange: undefined | [number, number],
 		private _ghostTextController: GhostTextController | null,
@@ -69,7 +72,8 @@ export class Explainer {
 		private _multiLineStreamFlag: boolean,
 		private _disposeFlag: boolean,
 		private _lastGeneratedCode: string,
-		private _explainerIdx: number
+		private _explainerIdx: number,
+		private _lastHoveredBend: number,
 	) {
 		this._explainerIdx = 0;
 		this._lastGeneratedCode = "";
@@ -78,6 +82,7 @@ export class Explainer {
 		this._disposeFlag = true;
 		this._coloredOneLineFlag = true;
 		this._multiLineStreamFlag = true;
+		this._lastHoveredBend = -1;
 		this._editor.onDidScrollChange(() => { this.onDidScrollChange(); });
 		this._editor.onKeyDown(() => { this.onKeyDown(); });
 		this._editor.onKeyUp(() => { this.onKeyUp(); });
@@ -124,17 +129,30 @@ export class Explainer {
 		if (mouseEvent.target === null || this._boxRange === undefined || this.box2 === undefined) {
 			return;
 		}
-		console.log(mouseEvent.target);
+		if (this.contentDivMulti === undefined || this.borderDivMulti === undefined) {
+			return;
+		}
+		//console.log(mouseEvent.target);
 		const position = mouseEvent.target.position;
 		if (!position) {
 			return;
 		}
 		if (position.lineNumber < this._boxRange[0] || position.lineNumber > this._boxRange[1]) {
 			this.box2.style.display = "none";
-			this.box2.innerHTML = "";
 			return;
-		} else {
+		} else if (this._lastHoveredBend !== position.lineNumber || this.contentDivMulti.innerHTML == "") {
+			this._lastHoveredBend = position.lineNumber;
+			this.createSingleInMultiExplainer(this.parent[0]);
 			this.box2.style.top = (position.lineNumber - 1) * this.lineHeight + 16 + 'px';
+			var lineNb = String(position.lineNumber);
+			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
+				var explainArr = this._multiSingleExplain[lineNb];
+				if (explainArr !== undefined) {
+					this.createSingleExplainer(explainArr, position.lineNumber, this.contentDivMulti, this.borderDivMulti);
+				}
+			}
+			this.box2.style.display = "block";
+		} else {
 			this.box2.style.display = "block";
 		}
 	}
@@ -204,28 +222,42 @@ export class Explainer {
 		var mousePos = this._editor.getPosition();
 		if (mousePos == null) return;
 		if (this.editorDiv === null) return;
-		var parent = this.editorDiv.getElementsByClassName("overflow-guard");
+		this.parent = this.editorDiv.getElementsByClassName("overflow-guard");
+		var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 		if (ghostText.length == 1) {
 			var explainType = 'single';
-			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 			if (isComment(this_line)) {
 				return;
 			};
 		} else {
 			var explainType = 'multi';
 		}
-		var currentIdx = this.createExplainer(generatedCode, parent, explainType, mousePos.lineNumber, generatedCodeLength);
+		var currentIdx = this.createExplainer(generatedCode, this.parent, explainType, mousePos.lineNumber, generatedCodeLength);
 		if (this.box === undefined) return;
-		parent[0].insertBefore(this.box, parent[0].firstChild);
+		this.parent[0].insertBefore(this.box, this.parent[0].firstChild);
 		this.onDidScrollChange();
 
 		if (this.contentDiv === undefined) return;
 
 		if (explainType == "single") {
-			var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 			this._summaryArr = this.getExplain(generatedCode, this.contentDiv, this._multiLineStreamFlag, explainType, this_line);
+			this._summaryArr.then((value) => {
+				if (this.contentDiv === undefined) return;
+				if (value === undefined) {
+					return;
+				}
+				if (explainType == "single") {
+					if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
+						this.createSingleExplainer(value, currentIdx);
+					} else {
+						drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
+					}
+				} else {
+					drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
+				}
+			});
 		} else {
-			this.createSingleInMultiExplainer(parent[0]);
+			this.createSingleInMultiExplainer(this.parent[0]);
 			var numberSections = 3,
 				realCode = 0;
 			generatedCode.split("\n").forEach((line) => {
@@ -240,27 +272,13 @@ export class Explainer {
 			} else {
 				var numberSections = 2;
 			}
+			generatedCode = this_line + generatedCode;
 			this._multiSingleExplainPromise = this.getExplain2(generatedCode, this.contentDiv, mousePos.lineNumber, numberSections);
+			this._multiSingleExplainPromise.then((data) => {
+				this._multiSingleExplain = data;
+				console.log(this._multiSingleExplain);
+			});
 		}
-		this._multiSingleExplainPromise.then((data) => {
-			this._multiSingleExplain = data;
-			console.log(this._multiSingleExplain);
-		});
-		this._summaryArr.then((value) => {
-			if (this.contentDiv === undefined) return;
-			if (value === undefined) {
-				return;
-			}
-			if (explainType == "single") {
-				if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
-					this.createSingleExplainer(value, currentIdx);
-				} else {
-					drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
-				}
-			} else {
-				drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
-			}
-		});
 	}
 
 	private onKeyUp() {
@@ -298,11 +316,19 @@ export class Explainer {
 		}
 	} */
 
-	private createSingleExplainer(bends: [number, number, string][], currentIdx: number) {
+	private createSingleExplainer(bends: [number, number, string][], currentIdx: number, contentDiv?: HTMLElement, borderDiv?: HTMLElement) {
 		var lastIdx = -1,
-			heighArry = [],
-			contentDiv = document.getElementById("contentDiv" + currentIdx),
-			borderDiv = document.getElementById("borderDiv" + currentIdx);
+			heighArry = [];
+		if (contentDiv === undefined) {
+			var contentDivTemp = document.getElementById("contentDiv" + currentIdx);
+			if (contentDivTemp === null) return;
+			contentDiv = contentDivTemp;
+		}
+		if (borderDiv === undefined) {
+			var borderDivTemp = document.getElementById("borderDiv" + currentIdx);
+			if (borderDivTemp === null) return;
+			borderDiv = borderDivTemp;
+		}
 		if (contentDiv === null || borderDiv === null) return;
 		var colorHue = ["rgb(185,170,135)", "rgb(151,175,189)", "rgb(202,161,163)", "rgb(112,181,201)", "rgb(160,176,153)", "rgb(171,167,207)", "rgb(140,179,171)", "rgb(191,163,189)"];
 		var bendWidth = 100,
@@ -428,6 +454,13 @@ export class Explainer {
 	}
 
 	private createSingleInMultiExplainer(parent: Element) {
+		this.box2?.remove();
+		this.box2 = undefined;
+		this.contentDivMulti?.remove();
+		this.contentDivMulti = undefined;
+		this.borderDivMulti?.remove();
+		this.borderDivMulti = undefined;
+
 		this.box2 = document.createElement('div');
 		this.box2.id = "single_container_in_multi";
 		this.box2.style.position = 'absolute';
@@ -436,8 +469,21 @@ export class Explainer {
 		this.box2.style.left = '66px';
 		this.box2.style.width = '1500px';
 		this.box2.style.height = '100px';
-		this.box2.style.backgroundColor = 'white';
 		this.box2.style.display = "none";
+
+		this.borderDivMulti = document.createElement('div');
+		this.borderDivMulti.id = "borderDivMulti";
+		this.borderDivMulti.style.width = '1500px';
+		this.borderDivMulti.style.height = '3px';
+		this.box2.appendChild(this.borderDivMulti);
+
+		this.contentDivMulti = document.createElement('div');
+		this.contentDivMulti.id = "contentDivMulti";
+		this.contentDivMulti.style.backgroundColor = 'rgba(40, 44, 52, 0)'; //60, 60, 60, 1
+		this.contentDivMulti.style.boxSizing = 'border-box';
+		this.contentDivMulti.style.display = 'block';
+		this.contentDivMulti.style.width = '1500px';
+		this.box2.appendChild(this.contentDivMulti);
 		parent.insertBefore(this.box2, parent.firstChild);
 	}
 
@@ -473,7 +519,7 @@ export class Explainer {
 
 		if (type == "multi") {
 			var explainStart = getStartPos(eachLine);
-			var trueVisableEditor = parent[0].parentElement;
+			var trueVisableEditor = this.parent[0].parentElement;
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
 			this._boxOriginalPostion = (startLine - 2) * this.lineHeight + 18;
