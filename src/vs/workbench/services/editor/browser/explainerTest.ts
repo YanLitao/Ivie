@@ -67,6 +67,7 @@ export class Explainer {
 		private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] },
 		//private _expandFlag: boolean,
 		private _boxOriginalPostion: number,
+		private _box2OriginalPostion: number,
 		private _coloredOneLineFlag: boolean,
 		private _multiLineStreamFlag: boolean,
 		private _disposeFlag: boolean,
@@ -133,18 +134,24 @@ export class Explainer {
 		}
 		var target = mouseEvent.target.element;
 		if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
+			console.log(target?.className);
 			this.box2.style.display = "block";
 			return;
 		}
+		var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var PosY = mouseEvent.event.posy;
-		var realLineNum = Math.ceil((PosY - 85) / 18);
+		var currentToTop = this._editor.getScrollTop();
+		var invisHeight = visableStart * this.lineHeight - currentToTop;
+		var visableLineNum = Math.ceil((PosY - 85) / 18);
+		var realLineNum = visableLineNum + visableStart - 1;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			this.box2.style.display = "none";
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
 			this.createSingleInMultiExplainer(this.parent[0]);
-			this.box2.style.top = (realLineNum - 1) * this.lineHeight + 16 + 'px';
+			this.box2.style.top = (visableLineNum - 2) * this.lineHeight + 16 + invisHeight + 'px';
+			this._box2OriginalPostion = (visableLineNum - 2) * this.lineHeight + 16 + invisHeight;
 			var lineNb = String(realLineNum);
 			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
 				var explainArr = this._multiSingleExplain[lineNb];
@@ -161,6 +168,10 @@ export class Explainer {
 	private onDidScrollChange() {
 		if (this.box) {
 			this.box.style.top = this._boxOriginalPostion - this._editor.getScrollTop() + "px";
+		}
+		if (this.box2) {
+			this.box2.style.top = this._box2OriginalPostion - this._editor.getScrollTop() + "px";
+			this.box2.style.left = 66 - this._editor.getScrollLeft() + "px";
 		}
 		if (this.box?.classList.contains("single")) {
 			this.box.style.left = 66 - this._editor.getScrollLeft() + "px";
@@ -472,7 +483,7 @@ export class Explainer {
 		this.box2.className = "MultiSingleExplainer";
 		this.box2.style.position = 'absolute';
 		this.box2.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
-		this.box2.style.top = 500 + 'px';
+		this.box2.style.top = 1500 + 'px';
 		this.box2.style.left = '66px';
 		this.box2.style.width = '1500px';
 		this.box2.style.height = '100px';
