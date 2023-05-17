@@ -75,4 +75,18 @@ To build and debug the project using Visual Studio Code, follow these steps:
 
 3. Click on the debug icon on the left side bar, and then click on the Start Debugging icon on the top-left.
 
+4. After opening Code - OSS (the testing editor), if you find the GitHub icon doesn't show up on the bottom-right corner, please turn back to the VScode interface and do the following steps:
+
+- Click on the "Run and Debug" icon on the left sidebar.
+
+- Find the "CALL STACK" widget.
+
+- Find the session called "Launch VS Code Internal:..."
+
+- Place your mouse over it, and when the tooltip shows up, click on the "restart" button.
+
+- Wait until new sessions start (Please refer the image below). Then, return to Code - OSS.
+
+![The correct session list](Debug.png "Correct Sessions")
+
 The editor interface should appear now.

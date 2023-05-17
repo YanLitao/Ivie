@@ -134,7 +134,6 @@ export class Explainer {
 		}
 		var target = mouseEvent.target.element;
 		if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
-			console.log(target?.className);
 			this.box2.style.display = "block";
 			return;
 		}
