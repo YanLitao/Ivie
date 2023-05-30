@@ -2,6 +2,7 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+//import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 export function addExplainer() {
 	console.log("added explainer");
 }
@@ -90,7 +91,7 @@ export class Explainer {
 		this._editor.onMouseDown(() => { this.onMouseDown(); });
 		this._editor.onMouseMove((e: IEditorMouseEvent) => { this.onMouseMove(e); });
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
-		this._editor.onDidContentSizeChange(() => { this.onContentSizeChange(); });
+		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
 		if (this._ghostTextController == null) {
 			return;
@@ -125,6 +126,26 @@ export class Explainer {
 		}
 	}
 
+	private hideMultiExplainer(startY: number) {
+		if (this.borderDiv !== undefined) {
+			this.borderDiv.style.opacity = "0";
+		}
+		var endY = startY + this.lineHeight;
+		var allBends = document.getElementsByClassName("bend");
+		for (var i = 0; i < allBends.length; i++) {
+			var bend = allBends[i] as HTMLElement;
+			if (bend !== undefined) {
+				var a = bend.offsetTop,
+					b = bend.offsetHeight + bend.offsetTop;
+				if ((a <= startY && b >= startY) ||
+					(a <= endY && b >= endY) ||
+					(a >= startY && b <= endY)) {
+					bend.style.opacity = "0";
+				}
+			}
+		}
+	}
+
 	private onMouseMove(mouseEvent: IEditorMouseEvent) {
 		if (mouseEvent.target === null || this._boxRange === undefined || this.box2 === undefined) {
 			return;
@@ -141,16 +162,25 @@ export class Explainer {
 		var PosY = mouseEvent.event.posy;
 		var currentToTop = this._editor.getScrollTop();
 		var invisHeight = visableStart * this.lineHeight - currentToTop;
-		var visableLineNum = Math.ceil((PosY - 85) / 18);
+		var visableLineNum = Math.floor((PosY - 85) / this.lineHeight);
 		var realLineNum = visableLineNum + visableStart - 1;
+		var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			this.box2.style.display = "none";
+			var allBends = document.getElementsByClassName("bend");
+			for (var i = 0; i < allBends.length; i++) {
+				var bend = allBends[i] as HTMLElement;
+				bend.style.opacity = "1";
+			}
+			if (this.borderDiv !== undefined) {
+				this.borderDiv.style.opacity = "1";
+			}
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
 			this.createSingleInMultiExplainer(this.parent[0]);
-			this.box2.style.top = (visableLineNum - 2) * this.lineHeight + 16 + invisHeight + 'px';
-			this._box2OriginalPostion = (visableLineNum - 2) * this.lineHeight + 16 + invisHeight;
+			this.box2.style.top = (visableLineNum - 1) * this.lineHeight + 2 + invisHeight + 'px';
+			this._box2OriginalPostion = (visableLineNum - 1) * this.lineHeight + 2 + invisHeight;
 			var lineNb = String(realLineNum);
 			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
 				var explainArr = this._multiSingleExplain[lineNb];
@@ -159,6 +189,12 @@ export class Explainer {
 				}
 			}
 			this.box2.style.display = "block";
+			var allBends = document.getElementsByClassName("bend");
+			for (var i = 0; i < allBends.length; i++) {
+				var bend = allBends[i] as HTMLElement;
+				bend.style.opacity = "1";
+			}
+			this.hideMultiExplainer(currentLineTop);
 		} else {
 			this.box2.style.display = "block";
 		}
@@ -179,10 +215,6 @@ export class Explainer {
 
 	private onLayoutChange() {
 		//console.log(this._editor.getLayoutInfo(), this._editor.getContentWidth());
-	}
-
-	private onContentSizeChange() {
-		//console.log(this._editor.getContentWidth());
 	}
 
 	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', numberSections: number = 1) {
@@ -237,7 +269,7 @@ export class Explainer {
 		generatedCode = this_line + generatedCode;
 		if (ghostText.length == 1) {
 			var explainType = 'single';
-			if (isComment(this_line)) {
+			if (isComment(generatedCode)) {
 				return;
 			};
 		} else {
@@ -359,7 +391,7 @@ export class Explainer {
 		for (var i = 0; i < bends.length; i++) {
 			var newBend = document.createElement("div"),
 				codeLine = document.createElement("div");
-			newBend.className = 'bend';
+			newBend.className = 'bendSingle';
 			newBend.id = 'bend_' + currentIdx + "_" + i;
 
 			codeLine.className = 'codeLine';
@@ -424,14 +456,14 @@ export class Explainer {
 		if (contentDiv.parentElement) {
 			contentDiv.parentElement.style.height = Math.max(...heighArry) + 'px';
 		}
-		contentDiv.querySelectorAll<HTMLElement>('.bend').forEach((newBend) => {
+		contentDiv.querySelectorAll<HTMLElement>('.bendSingle').forEach((newBend) => {
 			newBend.addEventListener('mouseover', () => {
 				var bendId = newBend.id;
 				var regenerateBends = newBend.querySelector<HTMLElement>('.regenerateBend');
 				if (regenerateBends) {
 					regenerateBends.style.display = 'block';
 				}
-				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
+				contentDiv?.querySelectorAll<HTMLElement>('.bendSingle').forEach((bend) => {
 					if (bend.id !== bendId) {
 						bend.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 						bend.style.color = "rgb(60, 60, 60, 0.8)";
@@ -448,7 +480,7 @@ export class Explainer {
 				if (regenerateBends) {
 					regenerateBends.style.display = 'none';
 				}
-				contentDiv?.querySelectorAll<HTMLElement>('.bend').forEach((bend) => {
+				contentDiv?.querySelectorAll<HTMLElement>('.bendSingle').forEach((bend) => {
 					bend.style.backgroundColor = 'rgb(37, 40, 57, 1)';
 					var bendIdx = parseInt(bend.id.split("_")[2]);
 					bend.style.color = "rgb(212,212,212,1)";
@@ -552,7 +584,7 @@ export class Explainer {
 			var trueVisableEditor = this.parent[0].parentElement;
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
-			this._boxOriginalPostion = (startLine - 2) * this.lineHeight + 18;
+			this._boxOriginalPostion = (startLine - 1) * this.lineHeight;
 			this.box.style.top = this._boxOriginalPostion + 'px';
 			this.box.style.left = explainStart + 'px';
 			this.box.style.height = generateLine * this.lineHeight + 'px';
