@@ -75,6 +75,21 @@ export class Explainer {
 		private _lastGeneratedCode: string,
 		private _explainerIdx: number,
 		private _lastHoveredBend: number,
+		private records: {
+			time: string,
+			ghostTopPx: number,
+			ghostBottomPx: number,
+			explainerTopNum: number,
+			explainerBottomNum: number,
+			explainerLeftPx: number,
+			explainerRightPx: number,
+			explainerTopPx: number,
+			explainerBottomPx: number,
+			singleExplainerTopPx: number,
+			singleExplainerBottomPx: number,
+			singleExplainerLeft: number,
+			singleExplainerRight: number
+		}[] = []
 	) {
 		this._explainerIdx = 0;
 		this._lastGeneratedCode = "";
@@ -93,6 +108,7 @@ export class Explainer {
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
+		this._editor.onDidBlurEditorText(() => { this.onDidChangeModel(); });
 		if (this._ghostTextController == null) {
 			return;
 		} else {
@@ -105,6 +121,66 @@ export class Explainer {
 			// this._ghostTextController.onActiveModelDidChange(() => { this.ghostTextChange(); });
 			this._ghostTextController.onActiveModelDidChange(console.log);
 		}
+	}
+
+	private onDidChangeModel() {
+		console.log(this.records);
+	}
+
+	private recordGeneratedCode() {
+		var time = new Date();
+		let currentTime: string = time.toLocaleTimeString('en-US', { hour12: false });
+		let millis = time.getUTCMilliseconds()
+		var recordTime = currentTime + ":" + String(millis);
+		var defaultLeft = 48;
+		var defaultTop = 85;
+
+		if (this._boxRange === undefined) {
+			var explainerTopNum = -1;
+			var explainerBottomNum = -1;
+		} else {
+			var explainerTopNum = this._boxRange[0];
+			var explainerBottomNum = this._boxRange[1];
+		}
+
+		if (this.box === undefined) {
+			return;
+		} else {
+			var explainerHeight = Number(this.box.style.height.replace("px", ""));
+			var boxTop = Number(this.box.style.top.replace("px", "")) + defaultTop;
+			var boxBottom = boxTop + explainerHeight;
+			var boxLeft = Number(this.box.style.left.replace("px", "")) + defaultLeft;
+			var boxRight = boxLeft + this.box.offsetWidth;
+			var explainerBottom = boxTop + (explainerBottomNum - explainerTopNum + 1) * this.lineHeight;
+		}
+
+		if (this.box2 === undefined) {
+			var singleExplainerTopPx = -1;
+			var singleExplainerBottomPx = -1;
+			var singleExplainerLeft = -1;
+			var singleExplainerRight = -1;
+		} else {
+			var singleExplainerTopPx = Number(this.box2.style.top.replace("px", "")) + defaultTop;
+			var singleExplainerBottomPx = singleExplainerTopPx + Number(this.box2.style.height.replace("px", ""));
+			var singleExplainerLeft = Number(this.box2.style.left.replace("px", "")) + defaultLeft;
+			var singleExplainerRight = singleExplainerLeft + Number(this.box2.style.width.replace("px", ""));
+		}
+		var newRecord = {
+			"time": recordTime,
+			"ghostTopPx": boxTop,
+			"ghostBottomPx": explainerBottom,
+			"explainerTopNum": explainerTopNum,
+			"explainerBottomNum": explainerBottomNum,
+			"explainerTopPx": boxTop,
+			"explainerBottomPx": boxBottom,
+			"explainerLeftPx": boxLeft,
+			"explainerRightPx": boxRight,
+			"singleExplainerTopPx": singleExplainerTopPx,
+			"singleExplainerBottomPx": singleExplainerBottomPx,
+			"singleExplainerLeft": singleExplainerLeft,
+			"singleExplainerRight": singleExplainerRight
+		};
+		this.records.push(newRecord);
 	}
 
 	private disposeExplanations() {
@@ -175,6 +251,7 @@ export class Explainer {
 			if (this.borderDiv !== undefined) {
 				this.borderDiv.style.opacity = "1";
 			}
+			this.recordGeneratedCode();
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
@@ -195,6 +272,7 @@ export class Explainer {
 				bend.style.opacity = "1";
 			}
 			this.hideMultiExplainer(currentLineTop);
+			this.recordGeneratedCode();
 		} else {
 			this.box2.style.display = "block";
 		}
@@ -211,6 +289,7 @@ export class Explainer {
 		if (this.box?.classList.contains("single")) {
 			this.box.style.left = 66 - this._editor.getScrollLeft() + "px";
 		}
+		this.recordGeneratedCode();
 	}
 
 	private onLayoutChange() {
@@ -230,8 +309,8 @@ export class Explainer {
 		};
 		if (multiLineStreamFlag == false || type == "single") {
 			var summaryArr = await OpenaiFetchAPI(text, type);
+			return summaryArr;
 		}
-		return summaryArr;
 	}
 
 	/* private async getExplain2(text: string, div: HTMLDivElement, currentLine: number, numberSections: number = 1) {
@@ -289,15 +368,12 @@ export class Explainer {
 				if (value === undefined) {
 					return;
 				}
-				if (explainType == "single") {
-					if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
-						this.createSingleExplainer(value, currentIdx);
-					} else {
-						drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
-					}
+				if (this._coloredOneLineFlag && this.borderDiv !== undefined) {
+					this.createSingleExplainer(value, currentIdx);
 				} else {
 					drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
 				}
+				this.recordGeneratedCode();
 			});
 		} else {
 			this._multiSingleExplain = {};
@@ -326,6 +402,7 @@ export class Explainer {
 			}
 			generatedCode = this_line + generatedCode;
 			OpenaiStreamAPI(generatedCode, this.contentDiv, numberSections);
+			this.recordGeneratedCode();
 		}
 	}
 
