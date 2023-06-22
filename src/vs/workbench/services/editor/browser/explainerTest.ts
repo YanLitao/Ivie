@@ -208,16 +208,19 @@ export class Explainer {
 		}
 		var endY = startY + this.lineHeight;
 		var allBends = document.getElementsByClassName("bend");
+		var h = Number(this.box?.style.top.replace("px", ""));
 		for (var i = 0; i < allBends.length; i++) {
 			var bend = allBends[i] as HTMLElement;
 			if (bend !== undefined) {
-				var a = bend.offsetTop,
-					b = bend.offsetHeight + bend.offsetTop;
+				h = h + Number(bend.style.marginTop.replace("px", ""))
+				var a = h;
+				var b = Number(bend.offsetHeight) + a;
 				if ((a <= startY && b >= startY) ||
 					(a <= endY && b >= endY) ||
 					(a >= startY && b <= endY)) {
 					bend.style.opacity = "0";
 				}
+				h = b
 			}
 		}
 	}
@@ -234,13 +237,13 @@ export class Explainer {
 			this.box2.style.display = "block";
 			return;
 		}
-		var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
+		//var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var PosY = mouseEvent.event.posy;
 		var currentToTop = this._editor.getScrollTop();
-		var invisHeight = visableStart * this.lineHeight - currentToTop;
-		var visableLineNum = Math.floor((PosY - 85) / this.lineHeight);
-		var realLineNum = visableLineNum + visableStart - 1;
-		var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
+		//var invisHeight = visableStart * this.lineHeight - currentToTop;
+		var realLineNum = Math.ceil((currentToTop + PosY - 85) / this.lineHeight);
+		//var realLineNum = visableLineNum + visableStart;
+		//var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			this.box2.style.display = "none";
 			var allBends = document.getElementsByClassName("bend");
@@ -256,8 +259,8 @@ export class Explainer {
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
 			this.createSingleInMultiExplainer(this.parent[0]);
-			this.box2.style.top = (visableLineNum - 1) * this.lineHeight + 2 + invisHeight + 'px';
-			this._box2OriginalPostion = (visableLineNum - 1) * this.lineHeight + 2 + invisHeight;
+			this.box2.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
+			this._box2OriginalPostion = realLineNum * this.lineHeight + 2;
 			var lineNb = String(realLineNum);
 			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
 				var explainArr = this._multiSingleExplain[lineNb];
@@ -271,7 +274,7 @@ export class Explainer {
 				var bend = allBends[i] as HTMLElement;
 				bend.style.opacity = "1";
 			}
-			this.hideMultiExplainer(currentLineTop);
+			this.hideMultiExplainer(PosY - 85);
 			this.recordGeneratedCode();
 		} else {
 			this.box2.style.display = "block";
