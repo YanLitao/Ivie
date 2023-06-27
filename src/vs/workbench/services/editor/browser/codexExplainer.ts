@@ -394,7 +394,7 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 					}
 					lastChar = currentChar;
 				} catch (e) {
-					console.log(e);
+					console.log(e, c);
 				}
 			}
 		}
