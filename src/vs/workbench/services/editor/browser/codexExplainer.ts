@@ -318,6 +318,21 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 	}
 }
 
+function extractString(s: string) {
+	const startToken = ',"choices":[{"text":"';
+	const endToken = '"';
+	const startIndex = s.indexOf(startToken);
+
+	if (startIndex !== -1) {
+		const endIndex = s.indexOf(endToken, startIndex + startToken.length);
+		if (endIndex !== -1) {
+			return s.substring(startIndex + startToken.length, endIndex);
+		}
+	}
+
+	return "";
+}
+
 export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberSections: number = 3) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
@@ -382,7 +397,7 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 			if (c !== "" && c.includes("choices")) {
 				try {
 					var data = JSON.parse(c);
-					var currentChar = data['choices'][0].text;
+					var currentChar = String(data['choices'][0].text);
 					if (lastChar == "\n" && currentChar == "*") {
 						var temp = buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
 						if (temp != undefined) {
@@ -394,7 +409,8 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 					}
 					lastChar = currentChar;
 				} catch (e) {
-					console.log(e, c);
+					var missingText = extractString(c);
+					console.log("missing", missingText);
 				}
 			}
 		}

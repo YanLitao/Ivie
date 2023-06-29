@@ -112,7 +112,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Register listeners to each opened group
 		for (const group of this.editorGroupService.groups) {
-			addExplainer();
 			this.registerGroupListeners(group as IEditorGroupView);
 		}
 
@@ -140,7 +139,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
 		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
-
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
 	}
@@ -423,6 +421,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			activeCodeEditor = activeTextEditorControl.getModifiedEditor();
 		} else {
 			activeCodeEditor = activeTextEditorControl;
+		}
+
+		if (activeCodeEditor) {
+			addExplainer(activeCodeEditor);
 		}
 
 		return activeCodeEditor?.getModel()?.getLanguageId();

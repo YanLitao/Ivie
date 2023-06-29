@@ -3,9 +3,6 @@ import { registerEditorContribution, EditorContributionInstantiation } from 'vs/
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 //import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-export function addExplainer() {
-	console.log("added explainer");
-}
 
 const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } | undefined => {
 	if (!arr.length) return undefined;
@@ -39,66 +36,57 @@ function getStartPos(textArray: string[]) {
 	}
 	var lines = staticsLength(lengthArray);
 	if (lines === undefined) {
-		return 80 * 7.225;
+		return 80 * 7.5;
 	}
 	var max = lines.max;
 	if (max >= 80) {
-		return 80 * 7.225;
+		return 80 * 7.5;
 	} else {
-		return max * 7.225;
+		return max * 7.5;
 	}
 }
 
 export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
+	private box: HTMLDivElement | undefined = undefined;
+	private box2: HTMLDivElement | undefined = undefined;
+	private borderDiv: HTMLDivElement | undefined = undefined;
+	private contentDiv: HTMLDivElement | undefined = undefined;
+	private borderDivMulti: HTMLDivElement | undefined = undefined;
+	private contentDivMulti: HTMLDivElement | undefined = undefined;
+	private lineHeight: number = 18;
+	private _boxRange: undefined | [number, number] = undefined;
+	private _ghostTextController: GhostTextController | null = null;
+	private _summaryArr: Promise<void | [number, number, string][]> | undefined = undefined;
+	private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
+	private _boxOriginalPostion: number = 0;
+	private _box2OriginalPostion: number = 0;
+	private _coloredOneLineFlag: boolean = true;
+	private _multiLineStreamFlag: boolean = true;
+	private _disposeFlag: boolean = true;
+	private _lastGeneratedCode: string = "";
+	private _explainerIdx: number = 0;
+	private _lastHoveredBend: number = -1;
+	private records: {
+		time: string,
+		ghostTopPx: number,
+		ghostBottomPx: number,
+		explainerTopNum: number,
+		explainerBottomNum: number,
+		explainerLeftPx: number,
+		explainerRightPx: number,
+		explainerTopPx: number,
+		explainerBottomPx: number,
+		singleExplainerTopPx: number,
+		singleExplainerBottomPx: number,
+		singleExplainerLeft: number,
+		singleExplainerRight: number
+	}[] = [];
+	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
 	constructor(
-		private readonly _editor: ICodeEditor,
-		private editorDiv = _editor.getDomNode(),
-		private parent: HTMLCollectionOf<Element>,
-		private box: HTMLDivElement | undefined = undefined,
-		private box2: HTMLDivElement | undefined = undefined,
-		private borderDiv: HTMLDivElement | undefined = undefined,
-		private contentDiv: HTMLDivElement | undefined = undefined,
-		private borderDivMulti: HTMLDivElement | undefined = undefined,
-		private contentDivMulti: HTMLDivElement | undefined = undefined,
-		private lineHeight: number,
-		private _boxRange: undefined | [number, number],
-		private _ghostTextController: GhostTextController | null,
-		private _summaryArr: Promise<void | [number, number, string][]>,
-		private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] },
+		private readonly _editor: ICodeEditor
 		//private _expandFlag: boolean,
-		private _boxOriginalPostion: number,
-		private _box2OriginalPostion: number,
-		private _coloredOneLineFlag: boolean,
-		private _multiLineStreamFlag: boolean,
-		private _disposeFlag: boolean,
-		private _lastGeneratedCode: string,
-		private _explainerIdx: number,
-		private _lastHoveredBend: number,
-		private records: {
-			time: string,
-			ghostTopPx: number,
-			ghostBottomPx: number,
-			explainerTopNum: number,
-			explainerBottomNum: number,
-			explainerLeftPx: number,
-			explainerRightPx: number,
-			explainerTopPx: number,
-			explainerBottomPx: number,
-			singleExplainerTopPx: number,
-			singleExplainerBottomPx: number,
-			singleExplainerLeft: number,
-			singleExplainerRight: number
-		}[] = []
 	) {
-		this._explainerIdx = 0;
-		this._lastGeneratedCode = "";
-		//this._expandFlag = true;
-		this.lineHeight = 18;
-		this._disposeFlag = true;
-		this._coloredOneLineFlag = true;
-		this._multiLineStreamFlag = true;
-		this._lastHoveredBend = -1;
 		this._editor.onDidScrollChange(() => { this.onDidScrollChange(); });
 		this._editor.onKeyDown(() => { this.onKeyDown(); });
 		this._editor.onKeyUp(() => { this.onKeyUp(); });
@@ -123,6 +111,7 @@ export class Explainer {
 		}
 	}
 
+	private editorDiv = this._editor.getDomNode();
 	private onDidChangeModel() {
 		console.log(this.records);
 	}
@@ -206,7 +195,10 @@ export class Explainer {
 		if (this.borderDiv !== undefined) {
 			this.borderDiv.style.opacity = "0";
 		}
-		var endY = startY + this.lineHeight;
+		if (this.box !== undefined) {
+			this.box.style.opacity = "0";
+		}
+		/* var endY = startY + this.lineHeight;
 		var allBends = document.getElementsByClassName("bend");
 		var h = Number(this.box?.style.top.replace("px", ""));
 		for (var i = 0; i < allBends.length; i++) {
@@ -222,7 +214,7 @@ export class Explainer {
 				}
 				h = b
 			}
-		}
+		} */
 	}
 
 	private onMouseMove(mouseEvent: IEditorMouseEvent) {
@@ -246,6 +238,7 @@ export class Explainer {
 		//var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			this.box2.style.display = "none";
+			//this.contentDivMulti.style.opacity = "1";
 			var allBends = document.getElementsByClassName("bend");
 			for (var i = 0; i < allBends.length; i++) {
 				var bend = allBends[i] as HTMLElement;
@@ -254,12 +247,16 @@ export class Explainer {
 			if (this.borderDiv !== undefined) {
 				this.borderDiv.style.opacity = "1";
 			}
+			if (this.box !== undefined) {
+				this.box.style.opacity = "1";
+			}
 			this.recordGeneratedCode();
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
 			this.createSingleInMultiExplainer(this.parent[0]);
 			this.box2.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
+			this.contentDivMulti.style.opacity = "1";
 			this._box2OriginalPostion = realLineNum * this.lineHeight + 2;
 			var lineNb = String(realLineNum);
 			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
@@ -267,6 +264,8 @@ export class Explainer {
 				if (explainArr !== undefined) {
 					this.createSingleExplainer(explainArr, realLineNum, this.contentDivMulti, this.borderDivMulti);
 				}
+			} else {
+				//this.contentDivMulti.style.opacity = "0";
 			}
 			this.box2.style.display = "block";
 			var allBends = document.getElementsByClassName("bend");
@@ -390,7 +389,7 @@ export class Explainer {
 					let lineNb = String(mousePos.lineNumber + i);
 					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 					summaryArrEach.then((value) => {
-						if (value) {
+						if (value && this._multiSingleExplain) {
 							this._multiSingleExplain[lineNb] = value;
 						}
 					});
@@ -487,6 +486,7 @@ export class Explainer {
 			newBend.style.backgroundColor = 'rgb(37, 40, 57, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			newBend.style.boxSizing = 'border-box';
+			newBend.style.boxShadow = "0px 10px 10px 5px rgba(0, 0, 0, 0.3)";
 			newBend.innerText = bends[i][2];
 			newBend.style.fontSize = '10px';
 			newBend.style.float = 'left';
@@ -740,4 +740,11 @@ export class Explainer {
 		}
 	}
 }
-registerEditorContribution(Explainer.ID, Explainer, EditorContributionInstantiation.BeforeFirstInteraction);
+
+var idOfExplainer = 0;
+
+export function addExplainer(editor: ICodeEditor) {
+	var explainer = new Explainer(editor);
+	registerEditorContribution(String(idOfExplainer), explainer, EditorContributionInstantiation.BeforeFirstInteraction);
+	idOfExplainer += 1;
+}
