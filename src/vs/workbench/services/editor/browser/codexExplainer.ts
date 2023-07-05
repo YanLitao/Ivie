@@ -145,26 +145,50 @@ export function matchLongText(text: string, longText: string) {
 	}
 } */
 
-export async function OpenaiFetchAPI(code: string, explainType: string, numberSections: number = 3) {
+export async function OpenaiFetchAPI(code: string, explainType: string, targetCode: number = 0) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
 	if (explainType == "multi") {
-		var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with *).\n" +
+		var splitCode = code.split("\n");
+		var prompt = "Please split the line of code I want explained, and explain any " +
+			"variables, parameters, functions, and structures inside it " +
+			"with less than 10 words.\n" +
+
 			"Prompt:\n" +
-			"var beginDate = new Date(begin);\n" +
-			"var endDate = new Date(end);\n" +
-			"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
+			'"""\n' +
+			"# Lines before the code of interest\n" +
+			"from flask import Flask, render_template, request, jsonify, send_from_directory\n" +
+			"import os\n" +
+			"# The line I want explained\n" +
+			"app = Flask(__name__, template_folder='web',static_folder='static')\n" +
+			"# Lines after the code of interest\n" +
+			"@app.route('/')\n" +
+			"def index():\n" +
+			"	return render_template('authoring.html')\n" +
+			'"""\n' +
+
 			"Output:\n" +
-			"*1. Define the start date.\n" +
-			"var beginDate = new Date(begin);\n" +
-			"*2. Define the end date.\n" +
-			"var endDate = new Date(end);\n" +
-			"*3. Calculate the number of days between the start and end dates.\n" +
-			"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
-			"Prompt: \n";
-		var promptSummary = prompt + code + "\nOutput:";
+			"app = Flask $#$Create a Flask application.\n" +
+			"__name__ $#$The name of the current module.\n" +
+			"template_folder='web' $#$Set the folder for templates.\n" +
+			"static_folder='static' $#$Set the folder for static files.\n" +
+			"Prompt:\n";
+
+		var preCode = splitCode.slice(0, targetCode).join("\n");
+		var explainCode = splitCode.slice(targetCode, targetCode + 1).join("\n");
+		var postCode = splitCode.slice(targetCode + 1, splitCode.length).join("\n");
+		var promptSummary = prompt + '"""\n' +
+			"# Lines before the code of interest\n" +
+			preCode + "\n" +
+			"# The line I want explained\n" +
+			explainCode + "\n" +
+			"# Lines after the code of interest\n" +
+			postCode + "\n" +
+			'"""\n' +
+			"\nOutput:";
 	} else {
-		var prompt = "Please split the following line of code and explain the unrecognizable vocabulary and structures inside following line of code with less than 10 words.\n" +
+		var prompt = "Please split the following line of code and explain the unrecognizable vocabulary and " +
+			"structures inside following line of code with less than 10 words.\n" +
 			"Prompt:\n" +
 			"tr = pandas.concat(pred.link_df_iter(frames, 0.5))\n" +
 			"Output:\n" +
@@ -197,62 +221,37 @@ export async function OpenaiFetchAPI(code: string, explainType: string, numberSe
 	}).then(data => {
 		var summaryArr: [number, number, string][] = [],
 			lastLine = 0;
+
+		var explainArr = data['choices'][0].text.split("\n");
+		var entireLine = code;
+		var rangeStart = entireLine.indexOf(code);
+		var rangeEnd = rangeStart + code.length;
 		if (explainType == "multi") {
-			var explainArr = data['choices'][0].text.split("\n*");
-			var codeLine = code.split("\n").length;
-			var regExp = /[a-zA-Z]/g;
-			for (const e of explainArr) {
-				var eArr = e.split("\n");
-				if (eArr.length >= 2) {
-					var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, eArr.shift()];
-					for (var i = 0; i < eArr.length; i++) {
-						if (regExp.test(eArr[i])) {
-							var otherLineNumbers = matchText(eArr[i], code, lastLine);
-							if (i == 0) {
-								newExplain[0] = otherLineNumbers.startLine;
-							} else if (lastLine < otherLineNumbers.startLine && otherLineNumbers.startLine < newExplain[0]) {
-								newExplain[0] = otherLineNumbers.startLine;
-							}
-							if (otherLineNumbers.endLine > newExplain[1]) {
-								newExplain[1] = otherLineNumbers.endLine;
-							}
-						}
-					}
-					lastLine = newExplain[1];
-					// match the codeText with the code in the #codeBlock div
-					// document.getElementById("codeBlock").innerText.match(codeText);
-					summaryArr.push(newExplain);
-				}
-				if (lastLine >= codeLine) {
-					break;
-				}
-			}
-		} else {
-			var explainArr = data['choices'][0].text.split("\n");
-			var entireLine = code;
-			var rangeStart = entireLine.indexOf(code);
-			var rangeEnd = rangeStart + code.length;
-			for (const e of explainArr) {
-				if (e.trim() == "") { continue; }
-				var e_splited = e.split("$#$");
-				var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, e_splited[1]];
-				var text = e_splited[0].trim();
-				if (text[0] == "'" || text[0] == '"') {
-					text = text.slice(1);
-				}
-				if (text[text.length - 1] == "'" || text[text.length - 1] == '"') {
-					text = text.slice(0, text.length - 1);
-				}
-				var longText = entireLine.replace(/\t/g, '    ');
-				newExplain[0] = lastLine + longText.slice(lastLine).indexOf(text);
-				newExplain[1] = newExplain[0] + text.length - 1;
-				if (newExplain[0] < rangeStart && newExplain[1] < rangeStart || newExplain[0] >= rangeEnd) {
-					continue;
-				}
-				lastLine = newExplain[1];
-				summaryArr.push(newExplain);
-			}
+			var entireLine = explainCode;
+			var rangeStart = 0;
+			var rangeEnd = rangeStart + explainCode.length;
 		}
+		for (const e of explainArr) {
+			if (e.trim() == "") { continue; }
+			var e_splited = e.split("$#$");
+			var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, e_splited[1]];
+			var text = e_splited[0].trim();
+			if (text[0] == "'" || text[0] == '"') {
+				text = text.slice(1);
+			}
+			if (text[text.length - 1] == "'" || text[text.length - 1] == '"') {
+				text = text.slice(0, text.length - 1);
+			}
+			var longText = entireLine.replace(/\t/g, '    ');
+			newExplain[0] = lastLine + longText.slice(lastLine).indexOf(text);
+			newExplain[1] = newExplain[0] + text.length - 1;
+			if (newExplain[0] < rangeStart && newExplain[1] < rangeStart || newExplain[0] >= rangeEnd) {
+				continue;
+			}
+			lastLine = newExplain[1];
+			summaryArr.push(newExplain);
+		}
+
 		console.log(summaryArr);
 		return summaryArr;
 		//drawBends(div, summaryArr, lineHeight);

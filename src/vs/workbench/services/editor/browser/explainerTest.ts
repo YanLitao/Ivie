@@ -1,4 +1,5 @@
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
@@ -49,9 +50,12 @@ function getStartPos(textArray: string[]) {
 export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
 	private box: HTMLDivElement | undefined = undefined;
+	private box1: HTMLDivElement | undefined = undefined;
 	private box2: HTMLDivElement | undefined = undefined;
 	private borderDiv: HTMLDivElement | undefined = undefined;
 	private contentDiv: HTMLDivElement | undefined = undefined;
+	private borderDivAll: HTMLDivElement | undefined = undefined;
+	private contentDivAll: HTMLDivElement | undefined = undefined;
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
 	private contentDivMulti: HTMLDivElement | undefined = undefined;
 	private lineHeight: number = 18;
@@ -59,10 +63,13 @@ export class Explainer {
 	private _ghostTextController: GhostTextController | null = null;
 	private _summaryArr: Promise<void | [number, number, string][]> | undefined = undefined;
 	private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
+	private _allExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
 	private _boxOriginalPostion: number = 0;
+	private _box1OriginalPostion: number = 0;
 	private _box2OriginalPostion: number = 0;
 	private _coloredOneLineFlag: boolean = true;
 	private _multiLineStreamFlag: boolean = true;
+	private _allModeFlag: boolean = true;
 	private _disposeFlag: boolean = true;
 	private _lastGeneratedCode: string = "";
 	private _explainerIdx: number = 0;
@@ -80,7 +87,11 @@ export class Explainer {
 		singleExplainerTopPx: number,
 		singleExplainerBottomPx: number,
 		singleExplainerLeft: number,
-		singleExplainerRight: number
+		singleExplainerRight: number,
+		allExplainerTopPx: number,
+		allExplainerBottomPx: number,
+		allExplainerLeft: number,
+		allExplainerRight: number
 	}[] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
 	constructor(
@@ -88,7 +99,7 @@ export class Explainer {
 		//private _expandFlag: boolean,
 	) {
 		this._editor.onDidScrollChange(() => { this.onDidScrollChange(); });
-		this._editor.onKeyDown(() => { this.onKeyDown(); });
+		this._editor.onKeyDown((e: IKeyboardEvent) => { this.onKeyDown(e); });
 		this._editor.onKeyUp(() => { this.onKeyUp(); });
 		this._editor.onDidDispose(() => { this.dispose(); });
 		this._editor.onMouseDown(() => { this.onMouseDown(); });
@@ -154,6 +165,18 @@ export class Explainer {
 			var singleExplainerLeft = Number(this.box2.style.left.replace("px", "")) + defaultLeft;
 			var singleExplainerRight = singleExplainerLeft + Number(this.box2.style.width.replace("px", ""));
 		}
+
+		if (this.box1 === undefined) {
+			var allExplainerTopPx = -1;
+			var allExplainerBottomPx = -1;
+			var allExplainerLeft = -1;
+			var allExplainerRight = -1;
+		} else {
+			var allExplainerTopPx = Number(this.box1.style.top.replace("px", "")) + defaultTop;
+			var allExplainerBottomPx = allExplainerTopPx + Number(this.box1.style.height.replace("px", ""));
+			var allExplainerLeft = Number(this.box1.style.left.replace("px", "")) + defaultLeft;
+			var allExplainerRight = allExplainerLeft + Number(this.box1.style.width.replace("px", ""));
+		}
 		var newRecord = {
 			"time": recordTime,
 			"ghostTopPx": boxTop,
@@ -167,7 +190,11 @@ export class Explainer {
 			"singleExplainerTopPx": singleExplainerTopPx,
 			"singleExplainerBottomPx": singleExplainerBottomPx,
 			"singleExplainerLeft": singleExplainerLeft,
-			"singleExplainerRight": singleExplainerRight
+			"singleExplainerRight": singleExplainerRight,
+			"allExplainerTopPx": allExplainerTopPx,
+			"allExplainerBottomPx": allExplainerBottomPx,
+			"allExplainerLeft": allExplainerLeft,
+			"allExplainerRight": allExplainerRight
 		};
 		this.records.push(newRecord);
 	}
@@ -191,43 +218,47 @@ export class Explainer {
 		}
 	}
 
-	private hideMultiExplainer(startY: number) {
+	private hideMultiExplainer() {
 		if (this.borderDiv !== undefined) {
 			this.borderDiv.style.opacity = "0";
 		}
 		if (this.box !== undefined) {
 			this.box.style.opacity = "0";
 		}
-		/* var endY = startY + this.lineHeight;
-		var allBends = document.getElementsByClassName("bend");
-		var h = Number(this.box?.style.top.replace("px", ""));
-		for (var i = 0; i < allBends.length; i++) {
-			var bend = allBends[i] as HTMLElement;
-			if (bend !== undefined) {
-				h = h + Number(bend.style.marginTop.replace("px", ""))
-				var a = h;
-				var b = Number(bend.offsetHeight) + a;
-				if ((a <= startY && b >= startY) ||
-					(a <= endY && b >= endY) ||
-					(a >= startY && b <= endY)) {
-					bend.style.opacity = "0";
-				}
-				h = b
-			}
-		} */
 	}
 
 	private onMouseMove(mouseEvent: IEditorMouseEvent) {
-		if (mouseEvent.target === null || this._boxRange === undefined || this.box2 === undefined) {
+		if (mouseEvent.target === null || this._boxRange === undefined) {
 			return;
 		}
-		if (this.contentDivMulti === undefined || this.borderDivMulti === undefined) {
-			return;
-		}
-		var target = mouseEvent.target.element;
-		if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
-			this.box2.style.display = "block";
-			return;
+
+		if (this._allModeFlag == false) {
+			if (this.box2 === undefined) {
+				return;
+			}
+			if (this.contentDivMulti === undefined || this.borderDivMulti === undefined) {
+				return;
+			}
+
+			var target = mouseEvent.target.element;
+			if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
+				this.box2.style.display = "block";
+				return;
+			}
+
+		} else {
+			if (this.box1 === undefined) {
+				return;
+			}
+			if (this.contentDivAll === undefined || this.borderDivAll === undefined) {
+				return;
+			}
+
+			var target = mouseEvent.target.element;
+			if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
+				this.box1.style.display = "block";
+				return;
+			}
 		}
 		//var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var PosY = mouseEvent.event.posy;
@@ -237,7 +268,12 @@ export class Explainer {
 		//var realLineNum = visableLineNum + visableStart;
 		//var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
-			this.box2.style.display = "none";
+			if (this._allModeFlag && this.box1 !== undefined) {
+				this.box1.style.display = "none";
+			} else if (this.box2 !== undefined) {
+				this.box2.style.display = "none";
+			}
+
 			//this.contentDivMulti.style.opacity = "1";
 			var allBends = document.getElementsByClassName("bend");
 			for (var i = 0; i < allBends.length; i++) {
@@ -254,29 +290,52 @@ export class Explainer {
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
-			this.createSingleInMultiExplainer(this.parent[0]);
-			this.box2.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
-			this.contentDivMulti.style.opacity = "1";
-			this._box2OriginalPostion = realLineNum * this.lineHeight + 2;
-			var lineNb = String(realLineNum);
-			if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
-				var explainArr = this._multiSingleExplain[lineNb];
-				if (explainArr !== undefined) {
-					this.createSingleExplainer(explainArr, realLineNum, this.contentDivMulti, this.borderDivMulti);
+			if (this._allModeFlag && this.box1 !== undefined) {
+				[this.box1, this.contentDivAll, this.borderDivAll] = this.createSingleInMultiExplainer();
+				this.parent[0].insertBefore(this.box1, this.parent[0].firstChild);
+				this.box1.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
+				this.contentDivAll.style.opacity = "1";
+				this._box1OriginalPostion = realLineNum * this.lineHeight + 2;
+				var lineNb = String(realLineNum);
+				if (this._allExplain && lineNb in this._allExplain) {
+					var explainArr = this._allExplain[lineNb];
+					if (explainArr !== undefined) {
+						this.createSingleExplainer(explainArr, realLineNum, this.contentDivAll, this.borderDivAll);
+					}
+				} else {
+					//targetContent.style.opacity = "0";
 				}
-			} else {
-				//this.contentDivMulti.style.opacity = "0";
+				this.box1.style.display = "block";
+			} else if (this.box2 !== undefined) {
+				[this.box2, this.contentDivMulti, this.borderDivMulti] = this.createSingleInMultiExplainer();
+				this.parent[0].insertBefore(this.box2, this.parent[0].firstChild);
+				this.box2.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
+				this.contentDivMulti.style.opacity = "1";
+				this._box2OriginalPostion = realLineNum * this.lineHeight + 2;
+				var lineNb = String(realLineNum);
+				if (this._multiSingleExplain && lineNb in this._multiSingleExplain) {
+					var explainArr = this._multiSingleExplain[lineNb];
+					if (explainArr !== undefined) {
+						this.createSingleExplainer(explainArr, realLineNum, this.contentDivMulti, this.borderDivMulti);
+					}
+				} else {
+					//targetContent.style.opacity = "0";
+				}
+				this.box2.style.display = "block";
 			}
-			this.box2.style.display = "block";
 			var allBends = document.getElementsByClassName("bend");
 			for (var i = 0; i < allBends.length; i++) {
 				var bend = allBends[i] as HTMLElement;
 				bend.style.opacity = "1";
 			}
-			this.hideMultiExplainer(PosY - 85);
+			this.hideMultiExplainer();
 			this.recordGeneratedCode();
 		} else {
-			this.box2.style.display = "block";
+			if (this._allModeFlag && this.box1 !== undefined) {
+				this.box1.style.display = "block";
+			} else if (this.box2 !== undefined) {
+				this.box2.style.display = "block";
+			}
 		}
 	}
 
@@ -287,6 +346,10 @@ export class Explainer {
 		if (this.box2) {
 			this.box2.style.top = this._box2OriginalPostion - this._editor.getScrollTop() + "px";
 			this.box2.style.left = 66 - this._editor.getScrollLeft() + "px";
+		}
+		if (this.box1) {
+			this.box1.style.top = this._box1OriginalPostion - this._editor.getScrollTop() + "px";
+			this.box1.style.left = 66 - this._editor.getScrollLeft() + "px";
 		}
 		if (this.box?.classList.contains("single")) {
 			this.box.style.left = 66 - this._editor.getScrollLeft() + "px";
@@ -340,6 +403,8 @@ export class Explainer {
 		if (generatedCode.trim() == this._lastGeneratedCode.trim() && this.box !== undefined) {
 			return;
 		}
+		this._allModeFlag = false;
+		this.disposeAllExplainer();
 		this._lastGeneratedCode = generatedCode.trim();
 		var generatedCodeLength = generatedCode.split("\n").length;
 		var mousePos = this._editor.getPosition();
@@ -379,7 +444,8 @@ export class Explainer {
 			});
 		} else {
 			this._multiSingleExplain = {};
-			this.createSingleInMultiExplainer(this.parent[0]);
+			[this.box2, this.contentDivMulti, this.borderDivMulti] = this.createSingleInMultiExplainer();
+			this.parent[0].insertBefore(this.box2, this.parent[0].firstChild);
 			var numberSections = 3,
 				realCode = 0;
 			var splitLines = generatedCode.split("\n");
@@ -409,39 +475,41 @@ export class Explainer {
 	}
 
 	private onKeyUp() {
+		this.disposeExplanations();
 	}
 
-	private onKeyDown() {
-		var mousePos = this._editor.getPosition();
-		if (mousePos !== null && this._boxRange !== undefined) {
-			if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
-				this.disposeExplanations();
+	private onKeyDown(e: IKeyboardEvent) {
+		this.disposeAllExplainer();
+		if (this._allModeFlag == false) {
+			var mousePos = this._editor.getPosition();
+			if (mousePos !== null && this._boxRange !== undefined) {
+				if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
+					this.disposeExplanations();
+				}
+			}
+		}
+
+		if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
+			this._allModeFlag = true;
+			var allCode = this._editor.getValue();
+			this._allExplain = {};
+			[this.box1, this.contentDivAll, this.borderDivAll] = this.createSingleInMultiExplainer();
+			this.parent[0].insertBefore(this.box1, this.parent[0].firstChild);
+			var splitLines = allCode.split("\n");
+			this._boxRange = [0, splitLines.length - 1];
+			for (var i = 0; i < splitLines.length; i++) {
+				if (isComment(splitLines[i]) == false) {
+					let lineNb = String(i + 1);
+					let summaryArrEach = OpenaiFetchAPI(allCode, "multi", i);
+					summaryArrEach.then((value) => {
+						if (value && this._allExplain) {
+							this._allExplain[lineNb] = value;
+						}
+					});
+				}
 			}
 		}
 	}
-
-	/* private expandEditor(parent: Element) {
-		if (parent === null) {
-			console.log('Cannot find editor');
-			return;
-		}
-		console.log(parent);
-		var lines = parent.querySelector(".view-lines");
-		if (lines === null) {
-			console.log('Cannot find lines');
-			return;
-		} else {
-			if (this._expandFlag) {
-				//this._editor.setValue(this._editor.getValue() + "\n" + " ".repeat(250));
-				this._expandFlag = false;
-			}
-			var emptyPlaceHolder = document.createElement("span");
-			emptyPlaceHolder.innerText = "&nbsp;".repeat(50);
-			emptyPlaceHolder.className = "mtk1";
-			console.log(emptyPlaceHolder, lines.firstChild?.firstChild);
-			lines.firstChild?.firstChild?.appendChild(emptyPlaceHolder);
-		}
-	} */
 
 	private createSingleExplainer(bends: [number, number, string][], currentIdx: number, contentDiv?: HTMLElement, borderDiv?: HTMLElement) {
 		var lastIdx = -1,
@@ -581,40 +649,49 @@ export class Explainer {
 		}); */
 	}
 
-	private createSingleInMultiExplainer(parent: Element) {
-		this.box2?.remove();
-		this.box2 = undefined;
-		this.contentDivMulti?.remove();
-		this.contentDivMulti = undefined;
-		this.borderDivMulti?.remove();
-		this.borderDivMulti = undefined;
+	private createSingleInMultiExplainer() {
+		if (this._allModeFlag) {
+			this.box1?.remove();
+			this.box1 = undefined;
+			this.contentDivAll?.remove();
+			this.contentDivAll = undefined;
+			this.borderDivAll?.remove();
+			this.borderDivAll = undefined;
+		} else {
+			this.box2?.remove();
+			this.box2 = undefined;
+			this.contentDivMulti?.remove();
+			this.contentDivMulti = undefined;
+			this.borderDivMulti?.remove();
+			this.borderDivMulti = undefined;
+		}
 
-		this.box2 = document.createElement('div');
-		this.box2.id = "single_container_in_multi";
-		this.box2.className = "MultiSingleExplainer";
-		this.box2.style.position = 'absolute';
-		this.box2.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
-		this.box2.style.top = 1500 + 'px';
-		this.box2.style.left = '66px';
-		this.box2.style.width = '1500px';
-		this.box2.style.height = '100px';
-		this.box2.style.display = "none";
-		this.box2.style.zIndex = '110';
+		var containerDiv = document.createElement('div');
+		containerDiv.id = "single_container_in_multi";
+		containerDiv.className = "MultiSingleExplainer";
+		containerDiv.style.position = 'absolute';
+		containerDiv.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
+		containerDiv.style.top = 1500 + 'px';
+		containerDiv.style.left = '66px';
+		containerDiv.style.width = '1500px';
+		containerDiv.style.height = '100px';
+		containerDiv.style.display = "none";
+		containerDiv.style.zIndex = '110';
 
-		this.borderDivMulti = document.createElement('div');
-		this.borderDivMulti.id = "borderDivMulti";
-		this.borderDivMulti.className = "MultiSingleExplainer";
-		this.borderDivMulti.style.width = '1500px';
-		this.borderDivMulti.style.height = '3px';
-		this.box2.appendChild(this.borderDivMulti);
+		var borderDiv = document.createElement('div');
+		borderDiv.id = "borderDivMulti";
+		borderDiv.className = "MultiSingleExplainer";
+		borderDiv.style.width = '1500px';
+		borderDiv.style.height = '3px';
+		containerDiv.appendChild(borderDiv);
 
-		this.contentDivMulti = document.createElement('div');
-		this.contentDivMulti.id = "contentDivMulti";
-		this.contentDivMulti.className = "MultiSingleExplainer";
-		this.contentDivMulti.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
-		this.contentDivMulti.style.boxSizing = 'border-box';
-		this.contentDivMulti.style.display = 'block';
-		this.contentDivMulti.style.width = '1500px';
+		var contentDiv = document.createElement('div');
+		contentDiv.id = "contentDivMulti";
+		contentDiv.className = "MultiSingleExplainer";
+		contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+		contentDiv.style.boxSizing = 'border-box';
+		contentDiv.style.display = 'block';
+		contentDiv.style.width = '1500px';
 
 		var placeholder = document.createElement('div');
 		placeholder.id = "placeholderMulti";
@@ -622,11 +699,12 @@ export class Explainer {
 		placeholder.style.paddingLeft = '5px';
 		placeholder.style.marginTop = '2px';
 		placeholder.style.borderLeft = '1.5px solid white';
-		this.contentDivMulti.appendChild(placeholder);
+		contentDiv.appendChild(placeholder);
 		animateDots(placeholder);
 
-		this.box2.appendChild(this.contentDivMulti);
-		parent.insertBefore(this.box2, parent.firstChild);
+		containerDiv.appendChild(contentDiv);
+		return [containerDiv, contentDiv, borderDiv];
+		// parent.insertBefore(containerDiv, parent.firstChild);
 	}
 
 	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
@@ -737,6 +815,25 @@ export class Explainer {
 				this.contentDivMulti = undefined;
 			}
 			this._explainerIdx += 1;
+		}
+	}
+
+	public disposeAllExplainer() {
+		if (document.getElementById("explainer_container") !== null) {
+			return;
+		} else {
+			if (this.box1) {
+				this.box1.remove();
+				this.box1 = undefined;
+			}
+			if (this.borderDivAll) {
+				this.borderDivAll.remove();
+				this.borderDivAll = undefined;
+			}
+			if (this.contentDivAll) {
+				this.contentDivAll.remove();
+				this.contentDivAll = undefined;
+			}
 		}
 	}
 }
