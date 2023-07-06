@@ -212,6 +212,7 @@ export class Explainer {
 	}
 
 	private onMouseDown() {
+		this.disposeAllExplainer();
 		var mousePos = this._editor.getPosition();
 		if (mousePos !== null && this._boxRange !== undefined) {
 			if (mousePos.lineNumber < this._boxRange[0] || mousePos.lineNumber > this._boxRange[1]) {
