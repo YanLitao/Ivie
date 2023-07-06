@@ -265,7 +265,7 @@ export function animateDots(placeholder: HTMLDivElement) {
 	let dots = '...';
 	setInterval(() => {
 		dots = dots.length < 3 ? dots + '.' : '.';
-		placeholder.textContent = dots;
+		placeholder.textContent = "Retrieving explanations" + dots;
 	}, 300);
 }
 

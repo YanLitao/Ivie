@@ -124,6 +124,8 @@ export class Explainer {
 
 	private editorDiv = this._editor.getDomNode();
 	private onDidChangeModel() {
+		this.disposeExplanations();
+		this.disposeAllExplainer();
 		console.log(this.records);
 	}
 
@@ -302,8 +304,6 @@ export class Explainer {
 					if (explainArr !== undefined) {
 						this.createSingleExplainer(explainArr, realLineNum, this.contentDivAll, this.borderDivAll);
 					}
-				} else {
-					//targetContent.style.opacity = "0";
 				}
 				this.box1.style.display = "block";
 			} else if (this.box2 !== undefined) {
@@ -318,8 +318,6 @@ export class Explainer {
 					if (explainArr !== undefined) {
 						this.createSingleExplainer(explainArr, realLineNum, this.contentDivMulti, this.borderDivMulti);
 					}
-				} else {
-					//targetContent.style.opacity = "0";
 				}
 				this.box2.style.display = "block";
 			}
@@ -377,19 +375,6 @@ export class Explainer {
 			return summaryArr;
 		}
 	}
-
-	/* private async getExplain2(text: string, div: HTMLDivElement, currentLine: number, numberSections: number = 1) {
-		let summaryLines: Record<string, void | [number, number, string][]> = {};
-		const eachLine = text.split("\n");
-		for (let i = 0; i < eachLine.length; i++) {
-			let lineTrimed = eachLine[i].trim();
-			if (lineTrimed == undefined || isComment(lineTrimed)) continue;
-			let summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single", eachLine[i]);
-			let lineNb = String(currentLine + i); // Assuming currentLine is defined elsewhere
-			summaryLines[lineNb] = summaryArrEach;
-		}
-		return summaryLines;
-	} */
 
 	private ghostTextChange() {
 		if (this._disposeFlag == false) return;
@@ -450,15 +435,17 @@ export class Explainer {
 				realCode = 0;
 			var splitLines = generatedCode.split("\n");
 			for (var i = 0; i < splitLines.length; i++) {
+				let lineNb = String(mousePos.lineNumber + i);
 				if (isComment(splitLines[i]) == false) {
 					realCode += 1;
-					let lineNb = String(mousePos.lineNumber + i);
 					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 					summaryArrEach.then((value) => {
 						if (value && this._multiSingleExplain) {
 							this._multiSingleExplain[lineNb] = value;
 						}
 					});
+				} else {
+					this._multiSingleExplain[lineNb] = [[0, 0, ""]];
 				}
 			}
 			if (realCode > 12) {
@@ -498,14 +485,16 @@ export class Explainer {
 			var splitLines = allCode.split("\n");
 			this._boxRange = [0, splitLines.length - 1];
 			for (var i = 0; i < splitLines.length; i++) {
+				let lineNb = String(i + 1);
 				if (isComment(splitLines[i]) == false) {
-					let lineNb = String(i + 1);
-					let summaryArrEach = OpenaiFetchAPI(allCode, "multi", i);
+					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 					summaryArrEach.then((value) => {
 						if (value && this._allExplain) {
 							this._allExplain[lineNb] = value;
 						}
 					});
+				} else {
+					this._allExplain[lineNb] = [[0, 0, ""]];
 				}
 			}
 		}
@@ -590,7 +579,13 @@ export class Explainer {
 					nextPos = nextPos + 3 + labelWidth;
 				}
 			}
-			newBend.style.display = 'inline-block';
+
+			if (bends[i][0] == bends[i][1] && bends[i][2] == "") {
+				codeLine.style.display = 'none';
+				newBend.style.display = 'none';
+			} else {
+				newBend.style.display = 'inline-block';
+			}
 			newBend.style.whiteSpace = 'pre-wrap';
 			newBend.style.paddingLeft = paddingSize + 'px';
 			newBend.style.paddingRight = paddingSize + 'px';
