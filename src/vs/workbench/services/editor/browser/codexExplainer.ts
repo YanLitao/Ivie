@@ -199,7 +199,6 @@ export async function OpenaiFetchAPI(code: string, explainType: string, targetCo
 			"Prompt:\n";
 		var promptSummary = prompt + code.trim() + "\nOutput:";
 	}
-	console.log(promptSummary);
 	let returnSum = await fetch(url, {
 		method: 'POST',
 		headers: {
@@ -251,8 +250,6 @@ export async function OpenaiFetchAPI(code: string, explainType: string, targetCo
 			lastLine = newExplain[1];
 			summaryArr.push(newExplain);
 		}
-
-		console.log(summaryArr);
 		return summaryArr;
 		//drawBends(div, summaryArr, lineHeight);
 	}).catch(error => {
@@ -349,7 +346,6 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
 		"Prompt: \n";
 	var promptSummary = prompt + code + "\nOutput:";
-	console.log(promptSummary);
 	let returnSum = await fetch(url, {
 		method: 'POST',
 		headers: {
@@ -446,7 +442,6 @@ export async function regenerateExplanation(code: string, text: string, div: HTM
 		const data = await response.json();
 		const generatedText = data.choices[0].text;
 		div.innerText = generatedText;
-		console.log("Generated text:", generatedText);
 	} catch (error) {
 		console.error("Error calling ChatGPT API:", error);
 	}

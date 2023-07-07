@@ -5,14 +5,19 @@ import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/work
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 //import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 
-const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } | undefined => {
-	if (!arr.length) return undefined;
+const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } => {
+	var median = 0;
+	var mean = 0;
+	var min = 0;
+	var max = 0;
+	if (!arr.length) return { median, mean, min, max };
 	const s = [...arr].sort((a, b) => a - b);
 	const mid = Math.floor(s.length / 2);
-	const median = s.length % 2 === 0 ? ((s[mid - 1] + s[mid]) / 2) : s[mid];
-	const mean = s.reduce((a, b) => a + b) / s.length;
-	const min = s[0];
-	const max = s[s.length - 1];
+
+	median = s.length % 2 === 0 ? ((s[mid - 1] + s[mid]) / 2) : s[mid];
+	mean = s.reduce((a, b) => a + b) / s.length;
+	min = s[0];
+	max = s[s.length - 1];
 	return { median, mean, min, max };
 };
 
@@ -50,10 +55,13 @@ function getStartPos(textArray: string[]) {
 export class Explainer {
 	public static readonly ID = 'editor.contrib.explainer';
 	private box: HTMLDivElement | undefined = undefined;
+	private box0: HTMLDivElement | undefined = undefined;
 	private box1: HTMLDivElement | undefined = undefined;
 	private box2: HTMLDivElement | undefined = undefined;
 	private borderDiv: HTMLDivElement | undefined = undefined;
 	private contentDiv: HTMLDivElement | undefined = undefined;
+	private borderDiv0: HTMLDivElement | undefined = undefined;
+	private contentDiv0: HTMLDivElement | undefined = undefined;
 	private borderDivAll: HTMLDivElement | undefined = undefined;
 	private contentDivAll: HTMLDivElement | undefined = undefined;
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
@@ -64,7 +72,9 @@ export class Explainer {
 	private _summaryArr: Promise<void | [number, number, string][]> | undefined = undefined;
 	private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
 	private _allExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
+	private _codeColumnRange: [number, number] | undefined = undefined;
 	private _boxOriginalPostion: number = 0;
+	private _box0OriginalPostion: number = 0;
 	private _box1OriginalPostion: number = 0;
 	private _box2OriginalPostion: number = 0;
 	private _coloredOneLineFlag: boolean = true;
@@ -74,6 +84,7 @@ export class Explainer {
 	private _lastGeneratedCode: string = "";
 	private _explainerIdx: number = 0;
 	private _lastHoveredBend: number = -1;
+	private _codeTextRatio: number = 7.225;
 	private records: {
 		time: string,
 		ghostTopPx: number,
@@ -206,8 +217,8 @@ export class Explainer {
 		var last_explain = document.getElementsByClassName("explainer-container");
 		for (var i = 0; i < last_explain.length; i++) {
 			last_explain[i].remove();
-			this._boxRange = undefined;
 		}
+		this._boxRange = undefined;
 		this._disposeFlag = true;
 	}
 
@@ -221,6 +232,22 @@ export class Explainer {
 		}
 	}
 
+	private showMultiExplainer() {
+		if (this.borderDiv !== undefined) {
+			this.borderDiv.style.opacity = "1";
+		}
+		if (this.box !== undefined) {
+			this.box.style.opacity = "1";
+		}
+		if (this.borderDiv0 !== undefined) {
+			this.borderDiv0.style.opacity = "1";
+		}
+		if (this.box0 !== undefined) {
+			this.box0.style.opacity = "1";
+			this.box0.style.display = "block";
+		}
+	}
+
 	private hideMultiExplainer() {
 		if (this.borderDiv !== undefined) {
 			this.borderDiv.style.opacity = "0";
@@ -228,15 +255,20 @@ export class Explainer {
 		if (this.box !== undefined) {
 			this.box.style.opacity = "0";
 		}
+		if (this.borderDiv0 !== undefined) {
+			this.borderDiv0.style.opacity = "0";
+		}
+		if (this.box0 !== undefined) {
+			this.box0.style.opacity = "0";
+		}
 	}
 
 	private onMouseMove(mouseEvent: IEditorMouseEvent) {
-		if (mouseEvent.target === null || this._boxRange === undefined) {
+		if (mouseEvent.target === null) {
 			return;
 		}
-
 		if (this._allModeFlag == false) {
-			if (this.box2 === undefined) {
+			if (this.box2 === undefined || this._boxRange === undefined) {
 				return;
 			}
 			if (this.contentDivMulti === undefined || this.borderDivMulti === undefined) {
@@ -244,7 +276,7 @@ export class Explainer {
 			}
 
 			var target = mouseEvent.target.element;
-			if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
+			if (target?.className == "MultiSingleExplainer" || target?.className == "bendSingle") {
 				this.box2.style.display = "block";
 				return;
 			}
@@ -256,20 +288,32 @@ export class Explainer {
 			if (this.contentDivAll === undefined || this.borderDivAll === undefined) {
 				return;
 			}
-
 			var target = mouseEvent.target.element;
 			if (target?.className == "MultiSingleExplainer" || target?.className == "bend") {
 				this.box1.style.display = "block";
 				return;
 			}
+			if (this._boxRange === undefined) {
+				this._boxRange = [1, this._editor.getValue().split("\n").length];
+			}
 		}
 		//var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
+		var PosX = mouseEvent.event.posx - 66 - 48;
+		if (!(this._codeColumnRange == undefined)
+			&& (PosX <= this._codeColumnRange[0] * this._codeTextRatio
+				|| this._codeColumnRange[1] * this._codeTextRatio <= PosX)) {
+			if (this._allModeFlag && this.box1 !== undefined) {
+				this.box1.style.display = "none";
+			} else if (this.box2 !== undefined) {
+				this.box2.style.display = "none";
+			}
+			this.showMultiExplainer();
+			this.recordGeneratedCode();
+			return;
+		}
 		var PosY = mouseEvent.event.posy;
 		var currentToTop = this._editor.getScrollTop();
-		//var invisHeight = visableStart * this.lineHeight - currentToTop;
 		var realLineNum = Math.ceil((currentToTop + PosY - 85) / this.lineHeight);
-		//var realLineNum = visableLineNum + visableStart;
-		//var currentLineTop = (visableLineNum - visableStart) * this.lineHeight + invisHeight;
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			if (this._allModeFlag && this.box1 !== undefined) {
 				this.box1.style.display = "none";
@@ -277,25 +321,19 @@ export class Explainer {
 				this.box2.style.display = "none";
 			}
 
-			//this.contentDivMulti.style.opacity = "1";
 			var allBends = document.getElementsByClassName("bend");
 			for (var i = 0; i < allBends.length; i++) {
 				var bend = allBends[i] as HTMLElement;
 				bend.style.opacity = "1";
 			}
-			if (this.borderDiv !== undefined) {
-				this.borderDiv.style.opacity = "1";
-			}
-			if (this.box !== undefined) {
-				this.box.style.opacity = "1";
-			}
+			this.showMultiExplainer();
 			this.recordGeneratedCode();
 			return;
 		} else if (this._lastHoveredBend !== realLineNum || document.getElementById("placeholderMulti") !== null) {
 			this._lastHoveredBend = realLineNum;
-			if (this._allModeFlag && this.box1 !== undefined) {
-				[this.box1, this.contentDivAll, this.borderDivAll] = this.createSingleInMultiExplainer();
-				this.parent[0].insertBefore(this.box1, this.parent[0].firstChild);
+			if (this._allModeFlag && this.box1 !== undefined && this.contentDivAll !== undefined) {
+				this.createSingleInMultiExplainer();
+				this.box1.style.display = "block";
 				this.box1.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
 				this.contentDivAll.style.opacity = "1";
 				this._box1OriginalPostion = realLineNum * this.lineHeight + 2;
@@ -307,9 +345,9 @@ export class Explainer {
 					}
 				}
 				this.box1.style.display = "block";
-			} else if (this.box2 !== undefined) {
-				[this.box2, this.contentDivMulti, this.borderDivMulti] = this.createSingleInMultiExplainer();
-				this.parent[0].insertBefore(this.box2, this.parent[0].firstChild);
+			} else if (this.box2 !== undefined && this.contentDivMulti !== undefined) {
+				this.createSingleInMultiExplainer();
+				this.box2.style.display = "block";
 				this.box2.style.top = realLineNum * this.lineHeight + 2 - currentToTop + 'px';
 				this.contentDivMulti.style.opacity = "1";
 				this._box2OriginalPostion = realLineNum * this.lineHeight + 2;
@@ -353,7 +391,26 @@ export class Explainer {
 		if (this.box?.classList.contains("single")) {
 			this.box.style.left = 66 - this._editor.getScrollLeft() + "px";
 		}
+		if (this.box0?.classList.contains("single")) {
+			this.box0.style.left = this._box0OriginalPostion - this._editor.getScrollTop() + "px";
+		}
 		this.recordGeneratedCode();
+	}
+
+	private getCodeColumnRange(textArray: string[]) {
+		// number of spaces or tabs
+		var maxEnd = textArray[0].length;
+		var minStart = maxEnd - textArray[0].trim().length;
+		for (var i = 0; i < textArray.length; i++) {
+			if (textArray[i].length > maxEnd) {
+				maxEnd = textArray[i].length;
+			}
+			if ((textArray[i].length - textArray[i].trim().length) < minStart) {
+				minStart = textArray[i].length;
+			}
+		}
+		return { min: minStart, max: maxEnd };
+
 	}
 
 	private onLayoutChange() {
@@ -368,7 +425,6 @@ export class Explainer {
 				var lineTrimed = eachLine[i].trim();
 				if (lineTrimed == undefined || isComment(lineTrimed)) continue;
 				var summaryArrEach = await OpenaiFetchAPI(eachLine[i], "single");
-				console.log(summaryArrEach);
 			}
 		};
 		if (multiLineStreamFlag == false || type == "single") {
@@ -399,6 +455,11 @@ export class Explainer {
 		this.parent = this.editorDiv.getElementsByClassName("overflow-guard");
 		var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 		generatedCode = this_line + generatedCode;
+
+		var columnData = this.getCodeColumnRange(generatedCode.split("\n"));
+		if (!(columnData === undefined || typeof columnData == "number")) {
+			this._codeColumnRange = [columnData.min, columnData.max];
+		}
 		if (ghostText.length == 1) {
 			var explainType = 'single';
 			if (isComment(generatedCode)) {
@@ -407,7 +468,7 @@ export class Explainer {
 		} else {
 			var explainType = 'multi';
 		}
-		var currentIdx = this.createExplainer(generatedCode, this.parent, explainType, mousePos.lineNumber, generatedCodeLength);
+		var currentIdx = this.createExplainer(generatedCode, explainType, mousePos.lineNumber, generatedCodeLength);
 		if (this.box === undefined) return;
 		this.parent[0].insertBefore(this.box, this.parent[0].firstChild);
 		this.onDidScrollChange();
@@ -430,8 +491,7 @@ export class Explainer {
 			});
 		} else {
 			this._multiSingleExplain = {};
-			[this.box2, this.contentDivMulti, this.borderDivMulti] = this.createSingleInMultiExplainer();
-			this.parent[0].insertBefore(this.box2, this.parent[0].firstChild);
+			this.createSingleInMultiExplainer();
 			var numberSections = 3,
 				realCode = 0;
 			var splitLines = generatedCode.split("\n");
@@ -481,13 +541,24 @@ export class Explainer {
 			this._allModeFlag = true;
 			var allCode = this._editor.getValue();
 			this._allExplain = {};
-			[this.box1, this.contentDivAll, this.borderDivAll] = this.createSingleInMultiExplainer();
-			this.parent[0].insertBefore(this.box1, this.parent[0].firstChild);
+			var numberSections = 3,
+				realCode = 0;
+
 			var splitLines = allCode.split("\n");
-			this._boxRange = [0, splitLines.length - 1];
+			this._boxRange = [1, splitLines.length];
+			var columnData = this.getCodeColumnRange(splitLines);
+			this._codeColumnRange = [columnData.min, columnData.max];
+			this.createExplainer(allCode, "all", 1, splitLines.length);
+			if (this.box0 === undefined) return;
+			if (this.contentDiv0 === undefined) return;
+			this.parent[0].insertBefore(this.box0, this.parent[0].firstChild);
+			this.onDidScrollChange();
+			// single line
+			this.createSingleInMultiExplainer();
 			for (var i = 0; i < splitLines.length; i++) {
 				let lineNb = String(i + 1);
 				if (isComment(splitLines[i]) == false) {
+					realCode += 1;
 					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 					summaryArrEach.then((value) => {
 						if (value && this._allExplain) {
@@ -498,6 +569,16 @@ export class Explainer {
 					this._allExplain[lineNb] = [[0, 0, ""]];
 				}
 			}
+			// multiple lines
+			if (realCode > 12) {
+				var numberSections = Math.ceil(realCode / 4);
+			} else if (realCode > 4) {
+				var numberSections = 3;
+			} else {
+				var numberSections = 2;
+			}
+			OpenaiStreamAPI(allCode, this.contentDiv0, numberSections);
+			this.recordGeneratedCode();
 		}
 	}
 
@@ -520,10 +601,9 @@ export class Explainer {
 		if (contentDiv === null || borderDiv === null) return;
 		var colorHue = ["rgb(185,170,135)", "rgb(151,175,189)", "rgb(202,161,163)", "rgb(112,181,201)", "rgb(160,176,153)", "rgb(171,167,207)", "rgb(140,179,171)", "rgb(191,163,189)"];
 		var bendWidth = 100,
-			codeTextRatio = 7.225,
 			labelTextRatio = 5.5,
 			paddingSize = 5;
-		var nextPos = bends[0][0] * codeTextRatio;
+		var nextPos = bends[0][0] * this._codeTextRatio;
 		var numberInLabel = Math.ceil((bendWidth - paddingSize * 2) / labelTextRatio);
 		for (var i = 0; i < bends.length; i++) {
 			var newBend = document.createElement("div"),
@@ -533,8 +613,8 @@ export class Explainer {
 
 			codeLine.className = 'codeLine';
 			codeLine.id = 'codeLine' + i;
-			codeLine.style.width = (bends[i][1] - bends[i][0] + 1) * 7.225 + 'px';
-			codeLine.style.marginLeft = (bends[i][0] - lastIdx - 1) * 7.225 + 'px';
+			codeLine.style.width = (bends[i][1] - bends[i][0] + 1) * this._codeTextRatio + 'px';
+			codeLine.style.marginLeft = (bends[i][0] - lastIdx - 1) * this._codeTextRatio + 'px';
 			codeLine.style.height = '1px';
 			codeLine.style.float = 'left';
 			codeLine.style.display = 'inline-block';
@@ -552,14 +632,14 @@ export class Explainer {
 			if (numberInLabel > bends[i][2].length) {
 				var labelWidth = bends[i][2].length * labelTextRatio + 10;
 				newBend.style.width = labelWidth + 'px';
-				var diffPos = bends[i][0] * codeTextRatio - nextPos;
+				var diffPos = bends[i][0] * this._codeTextRatio - nextPos;
 				if (diffPos >= 0) {
 					if (i == 0) {
-						newBend.style.marginLeft = bends[i][0] * codeTextRatio + 'px';
+						newBend.style.marginLeft = bends[i][0] * this._codeTextRatio + 'px';
 					} else {
 						newBend.style.marginLeft = diffPos + 'px';
 					}
-					nextPos = bends[i][0] * codeTextRatio + labelWidth;
+					nextPos = bends[i][0] * this._codeTextRatio + labelWidth;
 				} else {
 					newBend.style.marginLeft = '3px';
 					nextPos = nextPos + 3 + labelWidth;
@@ -567,14 +647,14 @@ export class Explainer {
 			} else {
 				var labelWidth = bendWidth;
 				newBend.style.width = labelWidth + 'px';
-				var diffPos = bends[i][0] * codeTextRatio - nextPos;
+				var diffPos = bends[i][0] * this._codeTextRatio - nextPos;
 				if (diffPos >= 0) {
 					if (i == 0) {
-						newBend.style.marginLeft = bends[i][0] * codeTextRatio + 'px';
+						newBend.style.marginLeft = bends[i][0] * this._codeTextRatio + 'px';
 					} else {
 						newBend.style.marginLeft = diffPos + 'px';
 					}
-					nextPos = bends[i][0] * codeTextRatio + labelWidth;
+					nextPos = bends[i][0] * this._codeTextRatio + labelWidth;
 				} else {
 					newBend.style.marginLeft = '3px';
 					nextPos = nextPos + 3 + labelWidth;
@@ -653,6 +733,45 @@ export class Explainer {
 			this.contentDivAll = undefined;
 			this.borderDivAll?.remove();
 			this.borderDivAll = undefined;
+
+			this.box1 = document.createElement('div');
+			this.box1.id = "single_container_in_multi";
+			this.box1.className = "MultiSingleExplainer";
+			this.box1.style.position = 'absolute';
+			this.box1.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
+			this.box1.style.top = 1500 + 'px';
+			this.box1.style.left = '66px';
+			this.box1.style.width = '1500px';
+			this.box1.style.height = '100px';
+			this.box1.style.display = "none";
+			this.box1.style.zIndex = '110';
+
+			this.borderDivAll = document.createElement('div');
+			this.borderDivAll.id = "borderDivMulti";
+			this.borderDivAll.className = "MultiSingleExplainer";
+			this.borderDivAll.style.width = '1500px';
+			this.borderDivAll.style.height = '3px';
+			this.box1.appendChild(this.borderDivAll);
+
+			this.contentDivAll = document.createElement('div');
+			this.contentDivAll.id = "contentDivMulti";
+			this.contentDivAll.className = "MultiSingleExplainer";
+			this.contentDivAll.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			this.contentDivAll.style.boxSizing = 'border-box';
+			this.contentDivAll.style.display = 'block';
+			this.contentDivAll.style.width = '1500px';
+
+			var placeholder = document.createElement('div');
+			placeholder.id = "placeholderMulti";
+			placeholder.textContent = '...';
+			placeholder.style.paddingLeft = '5px';
+			placeholder.style.marginTop = '2px';
+			placeholder.style.borderLeft = '1.5px solid white';
+			this.contentDivAll.appendChild(placeholder);
+			animateDots(placeholder);
+
+			this.box1.appendChild(this.contentDivAll);
+			this.parent[0].insertBefore(this.box1, this.parent[0].firstChild);
 		} else {
 			this.box2?.remove();
 			this.box2 = undefined;
@@ -660,125 +779,139 @@ export class Explainer {
 			this.contentDivMulti = undefined;
 			this.borderDivMulti?.remove();
 			this.borderDivMulti = undefined;
+
+			this.box2 = document.createElement('div');
+			this.box2.id = "single_container_in_multi";
+			this.box2.className = "MultiSingleExplainer";
+			this.box2.style.position = 'absolute';
+			this.box2.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
+			this.box2.style.top = 1500 + 'px';
+			this.box2.style.left = '66px';
+			this.box2.style.width = '1500px';
+			this.box2.style.height = '100px';
+			this.box2.style.display = "none";
+			this.box2.style.zIndex = '110';
+
+			this.borderDivMulti = document.createElement('div');
+			this.borderDivMulti.id = "borderDivMulti";
+			this.borderDivMulti.className = "MultiSingleExplainer";
+			this.borderDivMulti.style.width = '1500px';
+			this.borderDivMulti.style.height = '3px';
+			this.box2.appendChild(this.borderDivMulti);
+
+			this.contentDivMulti = document.createElement('div');
+			this.contentDivMulti.id = "contentDivMulti";
+			this.contentDivMulti.className = "MultiSingleExplainer";
+			this.contentDivMulti.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			this.contentDivMulti.style.boxSizing = 'border-box';
+			this.contentDivMulti.style.display = 'block';
+			this.contentDivMulti.style.width = '1500px';
+
+			var placeholder = document.createElement('div');
+			placeholder.id = "placeholderMulti";
+			placeholder.textContent = '...';
+			placeholder.style.paddingLeft = '5px';
+			placeholder.style.marginTop = '2px';
+			placeholder.style.borderLeft = '1.5px solid white';
+			this.contentDivMulti.appendChild(placeholder);
+			animateDots(placeholder);
+
+			this.box2.appendChild(this.contentDivMulti);
+			this.parent[0].insertBefore(this.box2, this.parent[0].firstChild);
 		}
 
-		var containerDiv = document.createElement('div');
-		containerDiv.id = "single_container_in_multi";
-		containerDiv.className = "MultiSingleExplainer";
-		containerDiv.style.position = 'absolute';
-		containerDiv.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
-		containerDiv.style.top = 1500 + 'px';
-		containerDiv.style.left = '66px';
-		containerDiv.style.width = '1500px';
-		containerDiv.style.height = '100px';
-		containerDiv.style.display = "none";
-		containerDiv.style.zIndex = '110';
-
-		var borderDiv = document.createElement('div');
-		borderDiv.id = "borderDivMulti";
-		borderDiv.className = "MultiSingleExplainer";
-		borderDiv.style.width = '1500px';
-		borderDiv.style.height = '3px';
-		containerDiv.appendChild(borderDiv);
-
-		var contentDiv = document.createElement('div');
-		contentDiv.id = "contentDivMulti";
-		contentDiv.className = "MultiSingleExplainer";
-		contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
-		contentDiv.style.boxSizing = 'border-box';
-		contentDiv.style.display = 'block';
-		contentDiv.style.width = '1500px';
-
-		var placeholder = document.createElement('div');
-		placeholder.id = "placeholderMulti";
-		placeholder.textContent = '...';
-		placeholder.style.paddingLeft = '5px';
-		placeholder.style.marginTop = '2px';
-		placeholder.style.borderLeft = '1.5px solid white';
-		contentDiv.appendChild(placeholder);
-		animateDots(placeholder);
-
-		containerDiv.appendChild(contentDiv);
-		return [containerDiv, contentDiv, borderDiv];
 		// parent.insertBefore(containerDiv, parent.firstChild);
 	}
 
-	private createExplainer(diff: string, parent: HTMLCollectionOf<Element>, type: string, startLine: number, generatedCodeLength: number = 0) {
-		this.disposeExplanations();
+	private createExplainer(diff: string, type: string, startLine: number, generatedCodeLength: number = 0) {
 		var newIdx = this._explainerIdx;
 		var eachLine = diff.split("\n");
-		this._boxRange = [startLine, startLine + generatedCodeLength - 1];
+
 		if (this.editorDiv === null) {
 			throw new Error('Cannot find Monaco Editor');
 		}
 
 		var generateLine = generatedCodeLength;
+		if (type == "all") {
+			this.box0 = document.createElement('div');
+			this.box0.style.position = 'absolute';
+			this.box0.className = "containerAll";
+			this.box0.style.zIndex = '100';
+			this.box0.id = "explainerAll";
+			this.borderDiv0 = document.createElement('div');
+			this.borderDiv0.id = "borderDivAll" + newIdx;
 
-		this.box = document.createElement('div');
-		this.box.style.position = 'absolute';
-		this.box.className = "explainer-container";
-		if (type == "single") {
-			this.box.classList.add("single");
-		}
-		this.box.style.zIndex = '100';
-		this.box.id = "explainer" + newIdx;
+			this.contentDiv0 = document.createElement('div');
+			this.contentDiv0.id = "contentDivAll" + newIdx;
+			this.contentDiv0.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			this.contentDiv0.style.boxSizing = 'border-box';
+			this.contentDiv0.style.display = 'block';
 
-
-		this.borderDiv = document.createElement('div');
-		this.borderDiv.id = "borderDiv" + newIdx;
-
-		this.contentDiv = document.createElement('div');
-		this.contentDiv.id = "contentDiv" + newIdx;
-		this.contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
-		this.contentDiv.style.boxSizing = 'border-box';
-		this.contentDiv.style.display = 'block';
-
-		if (type == "multi") {
 			var explainStart = getStartPos(eachLine);
 			var trueVisableEditor = this.parent[0].parentElement;
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
-			this._boxOriginalPostion = (startLine - 1) * this.lineHeight;
-			this.box.style.top = this._boxOriginalPostion + 'px';
-			this.box.style.left = explainStart + 'px';
-			this.box.style.height = generateLine * this.lineHeight + 'px';
-			this.borderDiv.style.height = generateLine * this.lineHeight + 'px';
-			this.borderDiv.style.float = 'left';
-			this.borderDiv.style.width = '30px';
-			this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(37, 40, 57, 0), rgba(37, 40, 57, 1) 100%)';//60, 60, 60
-			this.contentDiv.style.height = generateLine * this.lineHeight + 'px';
-			this.contentDiv.style.width = explainWidth - 30 + 'px';
-			this.contentDiv.style.float = 'right';
+			this._box0OriginalPostion = (startLine - 1) * this.lineHeight;
+			this.box0.style.top = this._box0OriginalPostion + 'px';
+			this.box0.style.left = explainStart + 'px';
+			this.box0.style.height = generateLine * this.lineHeight + 'px';
+			this.borderDiv0.style.height = generateLine * this.lineHeight + 'px';
+			this.borderDiv0.style.float = 'left';
+			this.borderDiv0.style.width = '30px';
+			this.borderDiv0.style.backgroundImage = 'linear-gradient(to right, rgba(37, 40, 57, 0), rgba(37, 40, 57, 1) 100%)';//60, 60, 60
+			this.contentDiv0.style.height = generateLine * this.lineHeight + 'px';
+			this.contentDiv0.style.width = explainWidth - 30 + 'px';
+			this.contentDiv0.style.float = 'right';
+			this.box0.appendChild(this.borderDiv0);
+			this.box0.appendChild(this.contentDiv0);
 		} else {
-			this._boxOriginalPostion = (startLine - 1) * this.lineHeight + 16;
-			this.box.style.top = this._boxOriginalPostion + 'px';
-			this.box.style.left = '66px';
-			this.borderDiv.style.height = '3px';
-			this.contentDiv.style.width = '1500px';
-			this.borderDiv.style.width = '1500px';
+			this.disposeExplanations();
+			this._boxRange = [startLine, startLine + generatedCodeLength - 1];
+			this.box = document.createElement('div');
+			this.box.style.position = 'absolute';
+			this.box.className = "explainer-container";
+			if (type == "single") {
+				this.box.classList.add("single");
+			}
+			this.box.style.zIndex = '100';
+			this.box.id = "explainer" + newIdx;
+
+			this.borderDiv = document.createElement('div');
+			this.borderDiv.id = "borderDiv" + newIdx;
+
+			this.contentDiv = document.createElement('div');
+			this.contentDiv.id = "contentDiv" + newIdx;
+			this.contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			this.contentDiv.style.boxSizing = 'border-box';
+			this.contentDiv.style.display = 'block';
+
+			if (type == "multi") {
+				var explainStart = getStartPos(eachLine);
+				var trueVisableEditor = this.parent[0].parentElement;
+				var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
+				var explainWidth = editorWidth - explainStart;
+				this._boxOriginalPostion = (startLine - 1) * this.lineHeight;
+				this.box.style.top = this._boxOriginalPostion + 'px';
+				this.box.style.left = explainStart + 'px';
+				this.box.style.height = generateLine * this.lineHeight + 'px';
+				this.borderDiv.style.height = generateLine * this.lineHeight + 'px';
+				this.borderDiv.style.float = 'left';
+				this.borderDiv.style.width = '30px';
+				this.borderDiv.style.backgroundImage = 'linear-gradient(to right, rgba(37, 40, 57, 0), rgba(37, 40, 57, 1) 100%)';//60, 60, 60
+				this.contentDiv.style.height = generateLine * this.lineHeight + 'px';
+				this.contentDiv.style.width = explainWidth - 30 + 'px';
+				this.contentDiv.style.float = 'right';
+			} else {
+				this._boxOriginalPostion = (startLine - 1) * this.lineHeight + 16;
+				this.box.style.top = this._boxOriginalPostion + 'px';
+				this.box.style.left = '66px';
+				this.borderDiv.style.height = '3px';
+				this.contentDiv.style.width = '1500px';
+				this.borderDiv.style.width = '1500px';
+			}
+			this.box.appendChild(this.borderDiv);
+			this.box.appendChild(this.contentDiv);
 		}
-		this.box.appendChild(this.borderDiv);
-		if (type == "multi") {
-			this.borderDiv.addEventListener('click', function (this) {
-				if (this.parentElement) {
-					var contentDiv = document.getElementById("contentDiv");
-					if (contentDiv && contentDiv.style.display == 'none') {
-						contentDiv.style.display = 'block';
-						this.parentElement.style.left = explainStart + 'px';
-					} else if (contentDiv) {
-						this.parentElement.style.left = editorWidth - 30 + 'px';
-						contentDiv.style.display = 'none';
-					}
-				}
-			});
-			/* this.borderDiv.addEventListener('mouseover', function (this) {
-				this.style.backgroundImage = 'linear-gradient(to right, rgba(82, 139, 255, 0), rgba(82, 139, 255, 1) 100%)';
-			});
-			this.borderDiv.addEventListener('mouseout', function (this) {
-				this.style.backgroundImage = 'linear-gradient(to right, rgba(40, 44, 52, 0), rgba(40, 44, 52, 1) 100%)';//60, 60, 60
-			}); */
-		}
-		this.box.appendChild(this.contentDiv);
 		return newIdx;
 	}
 
@@ -818,6 +951,18 @@ export class Explainer {
 		if (document.getElementById("explainer_container") !== null) {
 			return;
 		} else {
+			if (this.box0) {
+				this.box0.remove();
+				this.box0 = undefined;
+			}
+			if (this.borderDiv0) {
+				this.borderDiv0.remove();
+				this.borderDiv0 = undefined;
+			}
+			if (this.contentDiv0) {
+				this.contentDiv0.remove();
+				this.contentDiv0 = undefined;
+			}
 			if (this.box1) {
 				this.box1.remove();
 				this.box1 = undefined;
