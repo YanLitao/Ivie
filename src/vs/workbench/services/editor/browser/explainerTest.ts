@@ -35,7 +35,7 @@ function isComment(line: string) {
 	return false;
 }
 
-function getStartPos(textArray: string[]) {
+function getStartPos(textArray: string[], require: string = "none") {
 	var lengthArray = [];
 	for (var i = 0; i < textArray.length; i++) {
 		lengthArray.push(textArray[i].length);
@@ -45,8 +45,13 @@ function getStartPos(textArray: string[]) {
 		return 80 * 7.5;
 	}
 	var max = lines.max;
-	if (max >= 80) {
-		return 80 * 7.5;
+	if (require == "wide") {
+		var placeToStart = 100;
+	} else {
+		var placeToStart = 80;
+	}
+	if (max >= placeToStart) {
+		return placeToStart * 7.5;
 	} else {
 		return max * 7.5;
 	}
@@ -243,7 +248,7 @@ export class Explainer {
 			this.borderDiv0.style.opacity = "1";
 		}
 		if (this.box0 !== undefined) {
-			this.box0.style.opacity = "1";
+			this.box0.style.opacity = "0.7";
 			this.box0.style.display = "block";
 		}
 	}
@@ -257,9 +262,6 @@ export class Explainer {
 		}
 		if (this.borderDiv0 !== undefined) {
 			this.borderDiv0.style.opacity = "0";
-		}
-		if (this.box0 !== undefined) {
-			this.box0.style.opacity = "0";
 		}
 	}
 
@@ -300,8 +302,7 @@ export class Explainer {
 		//var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var PosX = mouseEvent.event.posx - 66 - 48;
 		if (!(this._codeColumnRange == undefined)
-			&& (PosX <= this._codeColumnRange[0] * this._codeTextRatio
-				|| this._codeColumnRange[1] * this._codeTextRatio <= PosX)) {
+			&& (PosX <= this._codeColumnRange[0] || this._codeColumnRange[1] <= PosX)) {
 			if (this._allModeFlag && this.box1 !== undefined) {
 				this.box1.style.display = "none";
 			} else if (this.box2 !== undefined) {
@@ -847,7 +848,10 @@ export class Explainer {
 			this.contentDiv0.style.boxSizing = 'border-box';
 			this.contentDiv0.style.display = 'block';
 
-			var explainStart = getStartPos(eachLine);
+			var explainStart = getStartPos(eachLine, "wide");
+			if (this._codeColumnRange) {
+				this._codeColumnRange = [this._codeColumnRange[0] * this._codeTextRatio, explainStart];
+			}
 			var trueVisableEditor = this.parent[0].parentElement;
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
@@ -864,6 +868,7 @@ export class Explainer {
 			this.contentDiv0.style.float = 'right';
 			this.box0.appendChild(this.borderDiv0);
 			this.box0.appendChild(this.contentDiv0);
+			this.box0.style.opacity = "0.7";
 		} else {
 			this.disposeExplanations();
 			this._boxRange = [startLine, startLine + generatedCodeLength - 1];
@@ -887,6 +892,9 @@ export class Explainer {
 
 			if (type == "multi") {
 				var explainStart = getStartPos(eachLine);
+				if (this._codeColumnRange) {
+					this._codeColumnRange = [this._codeColumnRange[0] * this._codeTextRatio, explainStart];
+				}
 				var trueVisableEditor = this.parent[0].parentElement;
 				var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 				var explainWidth = editorWidth - explainStart;

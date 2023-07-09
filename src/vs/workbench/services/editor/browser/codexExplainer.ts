@@ -393,20 +393,19 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 				try {
 					var data = JSON.parse(c);
 					var currentChar = String(data['choices'][0].text);
-					if (lastChar == "\n" && currentChar == "*") {
-						var temp = buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
-						if (temp != undefined) {
-							lastExplain = temp;
-						}
-						eachSnippet = "";
-					} else {
-						eachSnippet += currentChar;
-					}
-					lastChar = currentChar;
 				} catch (e) {
-					var missingText = extractString(c);
-					console.log("missing", missingText);
+					var currentChar = extractString(c);
 				}
+				if (lastChar == "\n" && currentChar == "*") {
+					var temp = buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
+					if (temp != undefined) {
+						lastExplain = temp;
+					}
+					eachSnippet = "";
+				} else {
+					eachSnippet += currentChar;
+				}
+				lastChar = currentChar;
 			}
 		}
 	}
