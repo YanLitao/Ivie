@@ -77,7 +77,6 @@ export class Explainer {
 	private _summaryArr: Promise<void | [number, number, string][]> | undefined = undefined;
 	private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
 	private _allExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
-	private _codeColumnRange: [number, number] | undefined = undefined;
 	private _boxOriginalPostion: number = 0;
 	private _box0OriginalPostion: number = 0;
 	private _box1OriginalPostion: number = 0;
@@ -103,11 +102,7 @@ export class Explainer {
 		singleExplainerTopPx: number,
 		singleExplainerBottomPx: number,
 		singleExplainerLeft: number,
-		singleExplainerRight: number,
-		allExplainerTopPx: number,
-		allExplainerBottomPx: number,
-		allExplainerLeft: number,
-		allExplainerRight: number
+		singleExplainerRight: number
 	}[] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
 	constructor(
@@ -161,15 +156,22 @@ export class Explainer {
 			var explainerBottomNum = this._boxRange[1];
 		}
 
-		if (this.box === undefined) {
-			return;
-		} else {
+		if (this.box !== undefined) {
 			var explainerHeight = Number(this.box.style.height.replace("px", ""));
 			var boxTop = Number(this.box.style.top.replace("px", "")) + defaultTop;
 			var boxBottom = boxTop + explainerHeight;
 			var boxLeft = Number(this.box.style.left.replace("px", "")) + defaultLeft;
 			var boxRight = boxLeft + this.box.offsetWidth;
 			var explainerBottom = boxTop + (explainerBottomNum - explainerTopNum + 1) * this.lineHeight;
+		} else if (this.box0 !== undefined) {
+			var explainerHeight = Number(this.box0.style.height.replace("px", ""));
+			var boxTop = Number(this.box0.style.top.replace("px", "")) + defaultTop;
+			var boxBottom = boxTop + explainerHeight;
+			var boxLeft = Number(this.box0.style.left.replace("px", "")) + defaultLeft;
+			var boxRight = boxLeft + this.box0.offsetWidth;
+			var explainerBottom = boxTop + (explainerBottomNum - explainerTopNum + 1) * this.lineHeight;
+		} else {
+			return;
 		}
 
 		if (this.box2 === undefined) {
@@ -185,15 +187,15 @@ export class Explainer {
 		}
 
 		if (this.box1 === undefined) {
-			var allExplainerTopPx = -1;
-			var allExplainerBottomPx = -1;
-			var allExplainerLeft = -1;
-			var allExplainerRight = -1;
+			var singleExplainerTopPx = -1;
+			var singleExplainerBottomPx = -1;
+			var singleExplainerLeft = -1;
+			var singleExplainerRight = -1;
 		} else {
-			var allExplainerTopPx = Number(this.box1.style.top.replace("px", "")) + defaultTop;
-			var allExplainerBottomPx = allExplainerTopPx + Number(this.box1.style.height.replace("px", ""));
-			var allExplainerLeft = Number(this.box1.style.left.replace("px", "")) + defaultLeft;
-			var allExplainerRight = allExplainerLeft + Number(this.box1.style.width.replace("px", ""));
+			var singleExplainerTopPx = Number(this.box1.style.top.replace("px", "")) + defaultTop;
+			var singleExplainerBottomPx = singleExplainerTopPx + Number(this.box1.style.height.replace("px", ""));
+			var singleExplainerLeft = Number(this.box1.style.left.replace("px", "")) + defaultLeft;
+			var singleExplainerRight = singleExplainerLeft + Number(this.box1.style.width.replace("px", ""));
 		}
 		var newRecord = {
 			"time": recordTime,
@@ -208,11 +210,7 @@ export class Explainer {
 			"singleExplainerTopPx": singleExplainerTopPx,
 			"singleExplainerBottomPx": singleExplainerBottomPx,
 			"singleExplainerLeft": singleExplainerLeft,
-			"singleExplainerRight": singleExplainerRight,
-			"allExplainerTopPx": allExplainerTopPx,
-			"allExplainerBottomPx": allExplainerBottomPx,
-			"allExplainerLeft": allExplainerLeft,
-			"allExplainerRight": allExplainerRight
+			"singleExplainerRight": singleExplainerRight
 		};
 		this.records.push(newRecord);
 	}
@@ -300,9 +298,19 @@ export class Explainer {
 			}
 		}
 		//var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
+
+		var PosY = mouseEvent.event.posy;
+		var currentToTop = this._editor.getScrollTop();
+		var realLineNum = Math.ceil((currentToTop + PosY - 85) / this.lineHeight);
+		if (realLineNum < 1) {
+			return;
+		}
 		var PosX = mouseEvent.event.posx - 66 - 48;
-		if (!(this._codeColumnRange == undefined)
-			&& (PosX <= this._codeColumnRange[0] || this._codeColumnRange[1] <= PosX)) {
+		var currentLineText = this._editor.getValue().split("\n")[realLineNum - 1];
+		var currentSpaces = currentLineText.length - currentLineText.trim().length;
+
+		if (PosX <= currentSpaces * this._codeTextRatio
+			|| currentLineText.length * this._codeTextRatio <= PosX) {
 			if (this._allModeFlag && this.box1 !== undefined) {
 				this.box1.style.display = "none";
 			} else if (this.box2 !== undefined) {
@@ -312,9 +320,7 @@ export class Explainer {
 			this.recordGeneratedCode();
 			return;
 		}
-		var PosY = mouseEvent.event.posy;
-		var currentToTop = this._editor.getScrollTop();
-		var realLineNum = Math.ceil((currentToTop + PosY - 85) / this.lineHeight);
+
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
 			if (this._allModeFlag && this.box1 !== undefined) {
 				this.box1.style.display = "none";
@@ -381,6 +387,9 @@ export class Explainer {
 		if (this.box) {
 			this.box.style.top = this._boxOriginalPostion - this._editor.getScrollTop() + "px";
 		}
+		if (this.box0) {
+			this.box0.style.top = this._box0OriginalPostion - this._editor.getScrollTop() + "px";
+		}
 		if (this.box2) {
 			this.box2.style.top = this._box2OriginalPostion - this._editor.getScrollTop() + "px";
 			this.box2.style.left = 66 - this._editor.getScrollLeft() + "px";
@@ -396,22 +405,6 @@ export class Explainer {
 			this.box0.style.left = this._box0OriginalPostion - this._editor.getScrollTop() + "px";
 		}
 		this.recordGeneratedCode();
-	}
-
-	private getCodeColumnRange(textArray: string[]) {
-		// number of spaces or tabs
-		var maxEnd = textArray[0].length;
-		var minStart = maxEnd - textArray[0].trim().length;
-		for (var i = 0; i < textArray.length; i++) {
-			if (textArray[i].length > maxEnd) {
-				maxEnd = textArray[i].length;
-			}
-			if ((textArray[i].length - textArray[i].trim().length) < minStart) {
-				minStart = textArray[i].length;
-			}
-		}
-		return { min: minStart, max: maxEnd };
-
 	}
 
 	private onLayoutChange() {
@@ -457,10 +450,6 @@ export class Explainer {
 		var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 		generatedCode = this_line + generatedCode;
 
-		var columnData = this.getCodeColumnRange(generatedCode.split("\n"));
-		if (!(columnData === undefined || typeof columnData == "number")) {
-			this._codeColumnRange = [columnData.min, columnData.max];
-		}
 		if (ghostText.length == 1) {
 			var explainType = 'single';
 			if (isComment(generatedCode)) {
@@ -547,8 +536,6 @@ export class Explainer {
 
 			var splitLines = allCode.split("\n");
 			this._boxRange = [1, splitLines.length];
-			var columnData = this.getCodeColumnRange(splitLines);
-			this._codeColumnRange = [columnData.min, columnData.max];
 			this.createExplainer(allCode, "all", 1, splitLines.length);
 			if (this.box0 === undefined) return;
 			if (this.contentDiv0 === undefined) return;
@@ -849,9 +836,6 @@ export class Explainer {
 			this.contentDiv0.style.display = 'block';
 
 			var explainStart = getStartPos(eachLine, "wide");
-			if (this._codeColumnRange) {
-				this._codeColumnRange = [this._codeColumnRange[0] * this._codeTextRatio, explainStart];
-			}
 			var trueVisableEditor = this.parent[0].parentElement;
 			var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 			var explainWidth = editorWidth - explainStart;
@@ -892,9 +876,6 @@ export class Explainer {
 
 			if (type == "multi") {
 				var explainStart = getStartPos(eachLine);
-				if (this._codeColumnRange) {
-					this._codeColumnRange = [this._codeColumnRange[0] * this._codeTextRatio, explainStart];
-				}
 				var trueVisableEditor = this.parent[0].parentElement;
 				var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 				var explainWidth = editorWidth - explainStart;
