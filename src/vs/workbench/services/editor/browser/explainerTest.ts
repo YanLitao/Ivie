@@ -85,6 +85,7 @@ export class Explainer {
 	private _multiLineStreamFlag: boolean = true;
 	private _allModeFlag: boolean = true;
 	private _disposeFlag: boolean = true;
+	private generateBtn: HTMLDivElement = document.createElement("div");
 	private _lastGeneratedCode: string = "";
 	private _explainerIdx: number = 0;
 	private _lastHoveredBend: number = -1;
@@ -131,9 +132,97 @@ export class Explainer {
 			// this._ghostTextController.onActiveModelDidChange(() => { this.ghostTextChange(); });
 			this._ghostTextController.onActiveModelDidChange(console.log);
 		}
+		this.editorDiv = this._editor.getDomNode();
+		this.createGeneraterBtn();
 	}
 
 	private editorDiv = this._editor.getDomNode();
+	private createGeneraterBtn() {
+		document.getElementById("generateBtn")?.remove();
+		if (this.editorDiv === undefined || this.editorDiv === null) {
+			this.editorDiv = this._editor.getDomNode();
+		};
+		if (this.editorDiv !== null) {
+			var editorParent = this.editorDiv.parentElement;
+			if (editorParent !== null) {
+				var editorParent1 = editorParent.parentElement;
+				if (editorParent1 !== null) {
+					var editorParent2 = editorParent1.parentElement;
+					if (editorParent2 !== null) {
+						editorParent2.insertBefore(this.generateBtn, editorParent2.firstChild);
+					}
+				} else {
+					return;
+				}
+			} else {
+				return;
+			}
+		}
+		this.generateBtn.id = "generateBtn";
+		this.generateBtn.style.position = "absolute";
+		this.generateBtn.style.top = "35px";
+		this.generateBtn.style.right = "0px";
+		this.generateBtn.style.width = "20px";
+		this.generateBtn.style.height = "20px";
+		this.generateBtn.style.borderRadius = "5px";
+		this.generateBtn.style.zIndex = "100";
+		this.generateBtn.style.cursor = "pointer";
+		this.generateBtn.style.textAlign = "center";
+		this.generateBtn.style.lineHeight = "20px";
+		this.generateBtn.style.fontSize = "12px";
+
+		let svgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+		svgElement.setAttributeNS(null, "x", "0px");
+		svgElement.setAttributeNS(null, "y", "0px");
+		svgElement.setAttributeNS(null, "viewBox", "0 0 1000 1000");
+		svgElement.setAttributeNS(null, "enable-background", "new 0 0 1000 1000");
+		svgElement.setAttributeNS(null, "width", "20");  // Adjusting the size to fit 20x20px
+		svgElement.setAttributeNS(null, "height", "20");  // Adjusting the size to fit 20x20px
+		svgElement.setAttributeNS(null, "fill", "rgb(65, 73, 107)");  // Icon color before hover
+
+		// Create group element
+		let gElement = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+		// Create paths
+		let paths = [
+			"M263.1,331.6c33.8,0,61.2,27.4,61.2,61.2c0,33.9-27.4,61.3-61.2,61.3c-33.8,0-61.3-27.4-61.3-61.3C201.9,359,229.3,331.6,263.1,331.6z",
+			"M508.2,331.6c33.9,0,61.3,27.4,61.3,61.2c0,33.9-27.4,61.3-61.3,61.3c-33.9,0-61.2-27.4-61.2-61.3C446.9,359,474.3,331.6,508.2,331.6z",
+			"M753.2,331.6c33.8,0,61.3,27.4,61.3,61.2c0,33.9-27.5,61.3-61.3,61.3c-33.9,0-61.2-27.4-61.2-61.3C691.9,359,719.3,331.6,753.2,331.6z",
+			"M845.9,25.3H154.1C74.5,25.3,10,89.7,10,169.1v460.4c0,79.4,64.5,143.9,144.1,143.9h288.3v201.4l331.5-201.4h72.1c79.6,0,144.1-64.4,144.1-143.9V169.1C990,89.7,925.5,25.3,845.9,25.3z M928.8,629.5c0,45.5-37.2,82.6-82.9,82.6h-72.1h-17.2l-14.6,8.9L503.6,865.9v-92.5v-61.3h-61.3H154.1c-45.7,0-82.9-37.1-82.9-82.6V169.1c0-45.5,37.2-82.5,82.9-82.5h691.9c45.7,0,82.9,37,82.9,82.5L928.8,629.5L928.8,629.5z"
+		];
+
+		for (let d of paths) {
+			let pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+			pathElement.setAttributeNS(null, "d", d);
+			pathElement.classList.add("pathIcons");
+			gElement.appendChild(pathElement);
+		}
+
+		// Append group to SVG
+		svgElement.appendChild(gElement);
+
+		// Append SVG to generateBtn
+		this.generateBtn.appendChild(svgElement);
+
+		// hover effect
+		this.generateBtn.addEventListener("mouseover", () => {
+			var allPaths = document.getElementsByClassName("pathIcons");
+			for (var i = 0; i < allPaths.length; i++) {
+				allPaths[i].setAttributeNS(null, "fill", "rgb(121, 130, 169)");
+			}
+		});
+
+		this.generateBtn.addEventListener("mouseout", () => {
+			var allPaths = document.getElementsByClassName("pathIcons");
+			for (var i = 0; i < allPaths.length; i++) {
+				allPaths[i].setAttributeNS(null, "fill", "rgb(65, 73, 107)");
+			}
+		});
+
+		this.generateBtn.addEventListener("click", () => {
+			this.generateAllExplanations();
+		});
+	}
 	private onDidChangeModel() {
 		this.disposeExplanations();
 		this.disposeAllExplainer();
@@ -516,6 +605,49 @@ export class Explainer {
 		this.disposeExplanations();
 	}
 
+	private generateAllExplanations() {
+		this.disposeAllExplainer();
+		this._allModeFlag = true;
+		var allCode = this._editor.getValue();
+		this._allExplain = {};
+		var numberSections = 3,
+			realCode = 0;
+
+		var splitLines = allCode.split("\n");
+		this._boxRange = [1, splitLines.length];
+		this.createExplainer(allCode, "all", 1, splitLines.length);
+		if (this.box0 === undefined) return;
+		if (this.contentDiv0 === undefined) return;
+		this.parent[0].insertBefore(this.box0, this.parent[0].firstChild);
+		this.onDidScrollChange();
+		// single line
+		this.createSingleInMultiExplainer();
+		for (var i = 0; i < splitLines.length; i++) {
+			let lineNb = String(i + 1);
+			if (isComment(splitLines[i]) == false) {
+				realCode += 1;
+				let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
+				summaryArrEach.then((value) => {
+					if (value && this._allExplain) {
+						this._allExplain[lineNb] = value;
+					}
+				});
+			} else {
+				this._allExplain[lineNb] = [[0, 0, ""]];
+			}
+		}
+		// multiple lines
+		if (realCode > 12) {
+			var numberSections = Math.ceil(realCode / 4);
+		} else if (realCode > 4) {
+			var numberSections = 3;
+		} else {
+			var numberSections = 2;
+		}
+		OpenaiStreamAPI(allCode, this.contentDiv0, numberSections);
+		this.recordGeneratedCode();
+	}
+
 	private onKeyDown(e: IKeyboardEvent) {
 		this.disposeAllExplainer();
 		if (this._allModeFlag == false) {
@@ -528,45 +660,7 @@ export class Explainer {
 		}
 
 		if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
-			this._allModeFlag = true;
-			var allCode = this._editor.getValue();
-			this._allExplain = {};
-			var numberSections = 3,
-				realCode = 0;
-
-			var splitLines = allCode.split("\n");
-			this._boxRange = [1, splitLines.length];
-			this.createExplainer(allCode, "all", 1, splitLines.length);
-			if (this.box0 === undefined) return;
-			if (this.contentDiv0 === undefined) return;
-			this.parent[0].insertBefore(this.box0, this.parent[0].firstChild);
-			this.onDidScrollChange();
-			// single line
-			this.createSingleInMultiExplainer();
-			for (var i = 0; i < splitLines.length; i++) {
-				let lineNb = String(i + 1);
-				if (isComment(splitLines[i]) == false) {
-					realCode += 1;
-					let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
-					summaryArrEach.then((value) => {
-						if (value && this._allExplain) {
-							this._allExplain[lineNb] = value;
-						}
-					});
-				} else {
-					this._allExplain[lineNb] = [[0, 0, ""]];
-				}
-			}
-			// multiple lines
-			if (realCode > 12) {
-				var numberSections = Math.ceil(realCode / 4);
-			} else if (realCode > 4) {
-				var numberSections = 3;
-			} else {
-				var numberSections = 2;
-			}
-			OpenaiStreamAPI(allCode, this.contentDiv0, numberSections);
-			this.recordGeneratedCode();
+			this.generateAllExplanations();
 		}
 	}
 
