@@ -90,6 +90,7 @@ export class Explainer {
 	private _explainerIdx: number = 0;
 	private _lastHoveredBend: number = -1;
 	private _codeTextRatio: number = 7.225;
+	private _guildLineHeight: number = 8;
 	private records: {
 		time: string,
 		ghostTopPx: number,
@@ -664,6 +665,28 @@ export class Explainer {
 		}
 	}
 
+	private linkCodeToExplanations(guildLineArr: [number, number, string][]) {
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		var lastLine = guildLineArr[guildLineArr.length - 1];
+		svg.setAttribute('width', `${Math.max(lastLine[0], lastLine[1])}px`);
+		svg.setAttribute('height', '15px');
+		// Create a new line element
+		for (var i = 0; i < guildLineArr.length; i++) {
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+			line.setAttribute('x1', `${guildLineArr[i][1]}`);
+			line.setAttribute('y1', String(this._guildLineHeight));
+			line.setAttribute('x2', `${guildLineArr[i][0]}`);
+			line.setAttribute('y2', '0');
+			line.style.stroke = guildLineArr[i][2]; // Line color
+			line.style.strokeWidth = '2px'; // Line width
+
+			// Add the line to the SVG element
+			svg.appendChild(line);
+		}
+
+		return svg;
+	}
+
 	private createSingleExplainer(bends: [number, number, string][], currentIdx: number, contentDiv?: HTMLElement, borderDiv?: HTMLElement) {
 		var lastIdx = -1,
 			heighArry = [];
@@ -685,9 +708,25 @@ export class Explainer {
 		var bendWidth = 100,
 			labelTextRatio = 5.5,
 			paddingSize = 5;
+		// remove all childern inside the borderDiv
+		var childern = borderDiv.children;
+		for (var i = childern.length - 1; i >= 0; i--) {
+			borderDiv.removeChild(childern[i]);
+		}
+		var codeLineContainer = document.createElement("div");
+		codeLineContainer.style.height = '2px';
+		borderDiv.appendChild(codeLineContainer);
+
+		var guideLineContainer = document.createElement("div");
+		guideLineContainer.style.height = this._guildLineHeight + 'px';
+		borderDiv.appendChild(guideLineContainer);
+
 		var nextPos = bends[0][0] * this._codeTextRatio;
+		var guildLineArr: [number, number, string][] = [];
+		var guideLineFlag = false;
 		var numberInLabel = Math.ceil((bendWidth - paddingSize * 2) / labelTextRatio);
 		for (var i = 0; i < bends.length; i++) {
+
 			var newBend = document.createElement("div"),
 				codeLine = document.createElement("div");
 			newBend.className = 'bendSingle';
@@ -703,6 +742,8 @@ export class Explainer {
 			codeLine.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			codeLine.style.boxSizing = 'border-box';
 
+			var upperMid = (bends[i][1] + bends[i][0] + 1) * this._codeTextRatio / 2;
+
 			newBend.style.backgroundColor = 'rgb(37, 40, 57, 1)'; //132,194,214,0.2
 			newBend.style.borderTop = '2px solid ' + colorHue[i % colorHue.length];
 			newBend.style.boxSizing = 'border-box';
@@ -713,34 +754,25 @@ export class Explainer {
 
 			if (numberInLabel > bends[i][2].length) {
 				var labelWidth = bends[i][2].length * labelTextRatio + 10;
-				newBend.style.width = labelWidth + 'px';
-				var diffPos = bends[i][0] * this._codeTextRatio - nextPos;
-				if (diffPos >= 0) {
-					if (i == 0) {
-						newBend.style.marginLeft = bends[i][0] * this._codeTextRatio + 'px';
-					} else {
-						newBend.style.marginLeft = diffPos + 'px';
-					}
-					nextPos = bends[i][0] * this._codeTextRatio + labelWidth;
-				} else {
-					newBend.style.marginLeft = '3px';
-					nextPos = nextPos + 3 + labelWidth;
-				}
 			} else {
 				var labelWidth = bendWidth;
-				newBend.style.width = labelWidth + 'px';
-				var diffPos = bends[i][0] * this._codeTextRatio - nextPos;
-				if (diffPos >= 0) {
-					if (i == 0) {
-						newBend.style.marginLeft = bends[i][0] * this._codeTextRatio + 'px';
-					} else {
-						newBend.style.marginLeft = diffPos + 'px';
-					}
-					nextPos = bends[i][0] * this._codeTextRatio + labelWidth;
+			}
+			newBend.style.width = labelWidth + 'px';
+
+			var diffPos = bends[i][0] * this._codeTextRatio - nextPos;
+			if (diffPos >= 0) {
+				if (i == 0) {
+					newBend.style.marginLeft = bends[i][0] * this._codeTextRatio + 'px';
 				} else {
-					newBend.style.marginLeft = '3px';
-					nextPos = nextPos + 3 + labelWidth;
+					newBend.style.marginLeft = diffPos + 'px';
 				}
+				nextPos = bends[i][0] * this._codeTextRatio + labelWidth;
+				var lowerMid = bends[i][0] * this._codeTextRatio + labelWidth / 2;
+			} else {
+				newBend.style.marginLeft = '3px';
+				var lowerMid = nextPos + labelWidth / 2;
+				nextPos = nextPos + 3 + labelWidth;
+				guideLineFlag = true;
 			}
 
 			if (bends[i][0] == bends[i][1] && bends[i][2] == "") {
@@ -754,10 +786,19 @@ export class Explainer {
 			newBend.style.paddingRight = paddingSize + 'px';
 
 			contentDiv?.appendChild(newBend);
-			borderDiv?.appendChild(codeLine);
+			codeLineContainer.appendChild(codeLine);
+
 			heighArry.push(newBend.offsetHeight);
 			lastIdx = bends[i][1];
+			var newGuildLine: [number, number, string] = [upperMid, lowerMid, colorHue[i % colorHue.length]];
+			guildLineArr.push(newGuildLine);
 		}
+		if (guideLineFlag) {
+			var svg = this.linkCodeToExplanations(guildLineArr);
+			guideLineContainer.appendChild(svg);
+			borderDiv.style.height = 2 + this._guildLineHeight + 'px';
+		}
+
 		contentDiv.style.height = Math.max(...heighArry) + 'px';
 		if (contentDiv.parentElement) {
 			contentDiv.parentElement.style.height = Math.max(...heighArry) + 'px';
@@ -831,8 +872,9 @@ export class Explainer {
 			this.borderDivAll = document.createElement('div');
 			this.borderDivAll.id = "borderDivMulti";
 			this.borderDivAll.className = "MultiSingleExplainer";
-			this.borderDivAll.style.width = '1500px';
+			//this.borderDivAll.style.width = '1500px';
 			this.borderDivAll.style.height = '3px';
+			this.borderDivAll.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 			this.box1.appendChild(this.borderDivAll);
 
 			this.contentDivAll = document.createElement('div');
@@ -841,7 +883,7 @@ export class Explainer {
 			this.contentDivAll.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 			this.contentDivAll.style.boxSizing = 'border-box';
 			this.contentDivAll.style.display = 'block';
-			this.contentDivAll.style.width = '1500px';
+			//this.contentDivAll.style.width = '1500px';
 
 			var placeholder = document.createElement('div');
 			placeholder.id = "placeholderMulti";
@@ -877,8 +919,9 @@ export class Explainer {
 			this.borderDivMulti = document.createElement('div');
 			this.borderDivMulti.id = "borderDivMulti";
 			this.borderDivMulti.className = "MultiSingleExplainer";
-			this.borderDivMulti.style.width = '1500px';
+			//this.borderDivMulti.style.width = '1500px';
 			this.borderDivMulti.style.height = '3px';
+			this.borderDivMulti.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 			this.box2.appendChild(this.borderDivMulti);
 
 			this.contentDivMulti = document.createElement('div');
@@ -887,7 +930,7 @@ export class Explainer {
 			this.contentDivMulti.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 			this.contentDivMulti.style.boxSizing = 'border-box';
 			this.contentDivMulti.style.display = 'block';
-			this.contentDivMulti.style.width = '1500px';
+			//this.contentDivMulti.style.width = '1500px';
 
 			var placeholder = document.createElement('div');
 			placeholder.id = "placeholderMulti";
