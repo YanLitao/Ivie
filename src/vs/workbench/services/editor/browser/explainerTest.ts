@@ -396,9 +396,11 @@ export class Explainer {
 			return;
 		}
 		var PosX = mouseEvent.event.posx - 66 - 48;
-		var currentLineText = this._editor.getValue().split("\n")[realLineNum - 1];
-		var currentSpaces = currentLineText.length - currentLineText.trim().length;
+		var allText = this._editor.getValue() + this._lastGeneratedCode;
+		var temps = allText.replace(/\\n/g, '\n');
+		var currentLineText = temps.split("\n")[realLineNum - 1];
 
+		var currentSpaces = currentLineText.length - currentLineText.trim().length;
 		if (PosX <= currentSpaces * this._codeTextRatio
 			|| currentLineText.length * this._codeTextRatio <= PosX) {
 			if (this._allModeFlag && this.box1 !== undefined) {

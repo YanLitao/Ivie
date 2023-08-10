@@ -267,15 +267,17 @@ export function animateDots(placeholder: HTMLDivElement) {
 }
 
 function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string], placeholder: HTMLDivElement) {
-	var eArr: string[] = e.split("\n"),
+	e = e.replace(/\\n/g, '\n');
+	var eArr: string[] = e.split("$$"),
 		lastLine = 0,
 		regExp = /[a-zA-Z]/g;
 	if (eArr.length >= 2) {
 		var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, ""];
 		var firstLine = eArr.shift();
 		var codePart = eArr.join("\n");
+		eArr = codePart.split("\n");
 		if (firstLine !== undefined && codePart.trim() !== "") {
-			newExplain[2] = firstLine;
+			newExplain[2] = firstLine.replace(/\\n/g, '');
 		} else {
 			return;
 		}
@@ -332,18 +334,17 @@ function extractString(s: string) {
 export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberSections: number = 3) {
 	var url = "https://api.openai.com/v1/completions";
 	var bearer = 'Bearer ' + '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'
-	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with *).\n" +
+	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with $* for the explanation and $$ for the code snippet).\n" +
 		"Prompt:\n" +
 		"var beginDate = new Date(begin);\n" +
 		"var endDate = new Date(end);\n" +
 		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
 		"Output:\n" +
-		"*1. Define the start date.\n" +
-		"var beginDate = new Date(begin);\n" +
-		"*2. Define the end date.\n" +
+		"$*1. Define the start and date.\n" +
+		"$$var beginDate = new Date(begin);\n" +
 		"var endDate = new Date(end);\n" +
-		"*3. Calculate the number of days between the start and end dates.\n" +
-		"var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
+		"$*2. Calculate the number of days between the start and end dates.\n" +
+		"$$var days = Math.round((endDate - beginDate) / (1000 * 60 * 60 * 24));\n" +
 		"Prompt: \n";
 	var promptSummary = prompt + code + "\nOutput:";
 	let returnSum = await fetch(url, {
@@ -396,8 +397,8 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 				} catch (e) {
 					var currentChar = extractString(c);
 				}
-				if (lastChar == "\n" && currentChar == "*") {
-					var temp = buildBendWithStream(div, eachSnippet, code, lastExplain, placeholder);
+				if (lastChar.trim() == "$" && currentChar.trim() == "*") {
+					var temp = buildBendWithStream(div, eachSnippet.slice(0, -1), code, lastExplain, placeholder);
 					if (temp != undefined) {
 						lastExplain = temp;
 					}
