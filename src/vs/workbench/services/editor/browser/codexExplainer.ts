@@ -269,7 +269,7 @@ export function animateDots(placeholder: HTMLDivElement) {
 function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastExplain: [number, number, string], placeholder: HTMLDivElement) {
 	e = e.replace(/\\n/g, '\n');
 	var eArr: string[] = e.split("$$"),
-		lastLine = 0,
+		lastLine = lastExplain[1],
 		regExp = /[a-zA-Z]/g;
 	if (eArr.length >= 2) {
 		var newExplain: [number, number, string] = [lastLine + 1, lastLine + 1, ""];
@@ -295,7 +295,9 @@ function buildBendWithStream(div: HTMLDivElement, e: string, code: string, lastE
 			}
 		}
 		if (newExplain[0] == -1) {
-			return;
+			newExplain[0] = lastExplain[1] + 1;
+			newExplain[1] = lastExplain[1] + eArr.length;
+			//return;
 		} else if (newExplain[0] <= lastExplain[1]) {
 			return;
 		}

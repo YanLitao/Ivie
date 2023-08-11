@@ -400,17 +400,19 @@ export class Explainer {
 		var temps = allText.replace(/\\n/g, '\n');
 		var currentLineText = temps.split("\n")[realLineNum - 1];
 
-		var currentSpaces = currentLineText.length - currentLineText.trim().length;
-		if (PosX <= currentSpaces * this._codeTextRatio
-			|| currentLineText.length * this._codeTextRatio <= PosX) {
-			if (this._allModeFlag && this.box1 !== undefined) {
-				this.box1.style.display = "none";
-			} else if (this.box2 !== undefined) {
-				this.box2.style.display = "none";
+		if (!(currentLineText == undefined)) {
+			var currentSpaces = currentLineText.length - currentLineText.trim().length;
+			if (PosX <= currentSpaces * this._codeTextRatio
+				|| currentLineText.length * this._codeTextRatio <= PosX) {
+				if (this._allModeFlag && this.box1 !== undefined) {
+					this.box1.style.display = "none";
+				} else if (this.box2 !== undefined) {
+					this.box2.style.display = "none";
+				}
+				this.showMultiExplainer();
+				this.recordGeneratedCode();
+				return;
 			}
-			this.showMultiExplainer();
-			this.recordGeneratedCode();
-			return;
 		}
 
 		if (realLineNum < this._boxRange[0] || realLineNum > this._boxRange[1]) {
