@@ -227,7 +227,20 @@ export class Explainer {
 	private onDidChangeModel() {
 		this.disposeExplanations();
 		this.disposeAllExplainer();
-		console.log(this.records);
+		let csvContent = "data:text/csv;charset=utf-8,";
+		csvContent += Object.keys(this.records[0]).join(',') + "\r\n";
+		this.records.forEach(function (row) {
+			csvContent += Object.values(row).join(',') + "\r\n";
+		});
+
+		var encodedUri = encodeURI(csvContent);
+		var link = document.createElement("a");
+		link.id = "tempLink";
+		link.setAttribute("href", encodedUri);
+		link.setAttribute("download", "log.csv");
+		document.body.appendChild(link);
+		link.click();
+		document.getElementById("tempLink")?.remove();
 	}
 
 	private recordGeneratedCode() {
