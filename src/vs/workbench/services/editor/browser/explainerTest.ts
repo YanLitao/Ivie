@@ -71,6 +71,7 @@ export class Explainer {
 	private contentDivAll: HTMLDivElement | undefined = undefined;
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
 	private contentDivMulti: HTMLDivElement | undefined = undefined;
+	private allText: string = "";
 	private lineHeight: number = 18;
 	private _boxRange: undefined | [number, number] = undefined;
 	private _ghostTextController: GhostTextController | null = null;
@@ -410,7 +411,6 @@ export class Explainer {
 				"singleExplainerRight": singleExplainerRight,
 				"activity": activity,
 			};
-			console.log(newRecord);
 			this.records.push(newRecord);
 		}
 	}
@@ -511,14 +511,16 @@ export class Explainer {
 			return;
 		}
 		var PosX = mouseEvent.event.posx - 66 - 48;
-		var allText = this._editor.getValue() + this._lastGeneratedCode;
-		var temps = allText.replace(/\\n/g, '\n');
+		//var allText = this._editor.getValue() + this._lastGeneratedCode;
+		var temps = this.allText.replace(/\\n/g, '\n');
 		var currentLineText = temps.split("\n")[realLineNum - 1];
 
 		if (!(currentLineText == undefined)) {
-			var currentSpaces = currentLineText.length - currentLineText.trim().length;
+			var currentSpaces = currentLineText.length - currentLineText.trimStart().length;
+			console.log(currentSpaces, currentLineText);
 			if (PosX <= currentSpaces * this._codeTextRatio
 				|| currentLineText.length * this._codeTextRatio <= PosX) {
+				console.log("outside code", PosX, currentSpaces * this._codeTextRatio, currentLineText.length * this._codeTextRatio);
 				if (this._allModeFlag && this.box1 !== undefined) {
 					this.box1.style.display = "none";
 				} else if (this.box2 !== undefined) {
@@ -682,6 +684,9 @@ export class Explainer {
 		this.parent = this.editorDiv.getElementsByClassName("overflow-guard");
 		var this_line = this._editor.getValue().split("\n")[mousePos.lineNumber - 1];
 		generatedCode = this_line + generatedCode;
+		var realLineNum = mousePos.lineNumber;
+		var allTextArr = this._editor.getValue().split("\n");
+		this.allText = allTextArr.slice(0, realLineNum - 1).join("\n") + "\n" + generatedCode + allTextArr.slice(realLineNum - 1).join("\n");
 
 		if (ghostText.length == 1) {
 			var explainType = 'single';
