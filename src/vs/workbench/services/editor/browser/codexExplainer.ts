@@ -147,7 +147,7 @@ export function matchLongText(text: string, longText: string) {
 
 export async function OpenaiFetchAPI(code: string, explainType: string, targetCode: number = 0) {
 	var url = "https://api.openai.com/v1/completions";
-	var bearer = 'Bearer ' + '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'
+	var bearer = 'Bearer ' + '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'
 	if (explainType == "multi") {
 		var splitCode = code.split("\n");
 		var prompt = "Please split the line of code I want explained, and explain any " +
@@ -335,7 +335,7 @@ function extractString(s: string) {
 
 export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberSections: number = 3) {
 	var url = "https://api.openai.com/v1/completions";
-	var bearer = 'Bearer ' + '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'
+	var bearer = 'Bearer ' + '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'
 	var prompt = "Split the below code into " + numberSections + " snippets, printing out each snippet, and explaining each snippet (start with $* for the explanation and $$ for the code snippet).\n" +
 		"Prompt:\n" +
 		"var beginDate = new Date(begin);\n" +
@@ -419,7 +419,7 @@ export async function regenerateExplanation(code: string, text: string, div: HTM
 	const apiUrl = "https://api.openai.com/v1/engines/davinci-codex/completions";
 	const headers = {
 		"Content-Type": "application/json",
-		"Authorization": `Bearer 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`,
+		"Authorization": `Bearer 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`,
 	};
 
 	const body = {
