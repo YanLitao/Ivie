@@ -247,7 +247,7 @@ export class Explainer {
 		link.setAttribute("href", encodedUri);
 		link.setAttribute("download", "log.csv");
 		document.body.appendChild(link);
-		link.click();
+		// link.click();
 		document.getElementById("tempLink")?.remove();
 	}
 
@@ -825,11 +825,12 @@ export class Explainer {
 		for (var i = 0; i < guildLineArr.length; i++) {
 			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 			line.setAttribute('x1', `${guildLineArr[i][1]}`);
-			line.setAttribute('y1', String(this._guildLineHeight));
+			line.setAttribute('y1', String(this._guildLineHeight + 1));
 			line.setAttribute('x2', `${guildLineArr[i][0]}`);
-			line.setAttribute('y2', '0');
+			line.setAttribute('y2', '-3');
+			line.setAttribute('stroke-linecap', 'round');
 			line.style.stroke = guildLineArr[i][2]; // Line color
-			line.style.strokeWidth = '2px'; // Line width
+			line.style.strokeWidth = '1px'; // Line width
 
 			// Add the line to the SVG element
 			svg.appendChild(line);
@@ -1014,7 +1015,7 @@ export class Explainer {
 			this.box1.id = "single_container_in_multi";
 			this.box1.className = "MultiSingleExplainer";
 			this.box1.style.position = 'absolute';
-			this.box1.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
+			// this.box1.style.backgroundColor = 'rgb(37, 40, 57, 0.2)';
 			this.box1.style.top = 1500 + 'px';
 			this.box1.style.left = '66px';
 			this.box1.style.width = '1500px';
@@ -1027,13 +1028,13 @@ export class Explainer {
 			this.borderDivAll.className = "MultiSingleExplainer";
 			//this.borderDivAll.style.width = '1500px';
 			this.borderDivAll.style.height = '3px';
-			this.borderDivAll.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
+			// this.borderDivAll.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 			this.box1.appendChild(this.borderDivAll);
 
 			this.contentDivAll = document.createElement('div');
 			this.contentDivAll.id = "contentDivMulti";
 			this.contentDivAll.className = "MultiSingleExplainer";
-			this.contentDivAll.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			// this.contentDivAll.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 			this.contentDivAll.style.boxSizing = 'border-box';
 			this.contentDivAll.style.display = 'block';
 			//this.contentDivAll.style.width = '1500px';
@@ -1121,7 +1122,7 @@ export class Explainer {
 
 			this.contentDiv0 = document.createElement('div');
 			this.contentDiv0.id = "contentDivAll" + newIdx;
-			this.contentDiv0.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			// this.contentDiv0.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 			this.contentDiv0.style.boxSizing = 'border-box';
 			this.contentDiv0.style.display = 'block';
 
@@ -1160,7 +1161,7 @@ export class Explainer {
 
 			this.contentDiv = document.createElement('div');
 			this.contentDiv.id = "contentDiv" + newIdx;
-			this.contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
+			// this.contentDiv.style.backgroundColor = 'rgba(37, 40, 57, 0.2)'; //60, 60, 60, 1
 			this.contentDiv.style.boxSizing = 'border-box';
 			this.contentDiv.style.display = 'block';
 
