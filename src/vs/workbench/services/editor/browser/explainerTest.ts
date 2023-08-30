@@ -130,22 +130,58 @@ export class Explainer {
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
 		this._editor.onDidChangeModelContent((event) => {
-			var acceptedText = event.changes.map(change => change.text).join();
-			const textModel = this._editor.getModel();
-			const firstChange = event.changes[0];
-			if (textModel !== null && firstChange !== undefined) {
-				const oldText = textModel.getValueInRange(new Range(
-					firstChange.range.startLineNumber,
-					firstChange.range.startColumn,
-					firstChange.range.endLineNumber,
-					firstChange.range.endColumn));
-				if (acceptedText.startsWith(oldText)) {
-					acceptedText = acceptedText.substring(oldText.length);
+			/*
+			 * Log the positions of generated code.
+			 */
+			const editorTextModel = this._editor.getModel();
+			if (editorTextModel === null || editorTextModel === undefined) {
+				return;
+			}
+			const decorations = editorTextModel.getAllDecorations();
+			const generationDecorations = decorations.filter((decoration) => {
+				return decoration.options.className === 'generated-code';
+			});
+			console.log("Logging generation decorations:");
+			for (const dec of generationDecorations) {
+				for (var line = dec.range.startLineNumber; line <= dec.range.endLineNumber; line++) {
+					const left = line === dec.range.startLineNumber ?
+						this._editor.getOffsetForColumn(line, dec.range.startColumn) :
+						this._editor.getOffsetForColumn(line, 1);
+					const right = line === dec.range.endLineNumber ?
+						this._editor.getOffsetForColumn(line, dec.range.endColumn) :
+						this._editor.getOffsetForColumn(line, editorTextModel.getLineLength(line));
+					const top = this._editor.getTopForLineNumber(line);
+					const bottom = this._editor.getBottomForLineNumber(line);
+					console.log(dec.options.hoverMessage, left, right, top, bottom);
 				}
-				if (this.lastSuggestedGhostText !== null && acceptedText === this.lastSuggestedGhostText) {
-					this.lastSuggestedGhostText = null;
-					console.log("Accepted ghost text!", this.lastSuggestedGhostText);
+			}
+			/*
+			 * Add decorations for tracking generated code.
+			 */
+			if (this.lastSuggestedGhostText === null) {
+				return;
+			}
+			for (const change of event.changes) {
+				const textAfter = change.text.trimStart();
+				var updatedTextStart = editorTextModel.getPositionAt(change.rangeOffset);
+				var updatedTextEnd = editorTextModel.getPositionAt(change.rangeOffset + textAfter.length);
+				if (textAfter !== this.lastSuggestedGhostText) {
+					return;
 				}
+				console.log("Accepted ghost text!", this.lastSuggestedGhostText);
+				this.lastSuggestedGhostText = null;
+				const updatedRange = new Range(updatedTextStart.lineNumber, updatedTextStart.column, updatedTextEnd.lineNumber, updatedTextEnd.column);
+				this._editor.createDecorationsCollection([{
+					range: updatedRange,
+					options: {
+						description: "Generated content",
+						before: { content: "<<" },
+						after: { content: ">>" },
+						inlineClassName: 'myLineDecoration',
+						className: "generated-code",
+						hoverMessage: { value: textAfter },
+					}
+				}])
 			}
 		});
 		if (this._ghostTextController == null) {
