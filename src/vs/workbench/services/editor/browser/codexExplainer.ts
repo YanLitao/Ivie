@@ -13,7 +13,7 @@ function createBendDiv(height: number, marginTop: number, text: string, contentW
 	newBend.style.boxSizing = 'border-box';
 	newBend.style.paddingLeft = '5px';
 	newBend.style.paddingRight = '5px';
-	newBend.style.color = '#abb2bf';
+	newBend.style.color = 'rgb(212,212,212,1)';
 	newBend.style.fontWeight = '300';
 	newBend.style.fontSize = '12px';
 	newBend.innerText = text;

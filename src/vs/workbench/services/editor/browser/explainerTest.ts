@@ -1078,7 +1078,7 @@ export class Explainer {
 			this.borderDivAll.id = "borderDivMulti";
 			this.borderDivAll.className = "MultiSingleExplainer";
 			//this.borderDivAll.style.width = '1500px';
-			this.borderDivAll.style.height = '3px';
+			this.borderDivAll.style.height = '2px';
 			// this.borderDivAll.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 			this.box1.appendChild(this.borderDivAll);
 
@@ -1125,7 +1125,7 @@ export class Explainer {
 			this.borderDivMulti.id = "borderDivMulti";
 			this.borderDivMulti.className = "MultiSingleExplainer";
 			//this.borderDivMulti.style.width = '1500px';
-			this.borderDivMulti.style.height = '3px';
+			this.borderDivMulti.style.height = '2px';
 			this.borderDivMulti.style.backgroundColor = 'rgb(37, 40, 57, 0.8)';
 			this.box2.appendChild(this.borderDivMulti);
 
@@ -1194,7 +1194,7 @@ export class Explainer {
 			this.contentDiv0.style.float = 'right';
 			this.box0.appendChild(this.borderDiv0);
 			this.box0.appendChild(this.contentDiv0);
-			this.box0.style.opacity = "0.7";
+			this.box0.style.opacity = "1";
 		} else {
 			this.disposeExplanations();
 			this._boxRange = [startLine, startLine + generatedCodeLength - 1];
@@ -1236,7 +1236,7 @@ export class Explainer {
 				this._boxOriginalPostion = (startLine - 1) * this.lineHeight + 16;
 				this.box.style.top = this._boxOriginalPostion + 'px';
 				this.box.style.left = '66px';
-				this.borderDiv.style.height = '3px';
+				this.borderDiv.style.height = '2px';
 				this.contentDiv.style.width = '1500px';
 				this.borderDiv.style.width = '1500px';
 			}
