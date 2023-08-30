@@ -42,18 +42,19 @@ function getStartPos(textArray: string[], require: string = "none") {
 	}
 	var lines = staticsLength(lengthArray);
 	if (lines === undefined) {
-		return 80 * 7.5;
+		return 120 * 8;
 	}
 	var max = lines.max;
 	if (require == "wide") {
-		var placeToStart = 100;
+		var placeToStart = 120;
 	} else {
-		var placeToStart = 80;
+		var placeToStart = 100;
 	}
 	if (max >= placeToStart) {
-		return placeToStart * 7.5;
+		return placeToStart * 8;
 	} else {
-		return max * 7.5;
+		console.log("max: " + max);
+		return max * 8;
 	}
 }
 
@@ -88,6 +89,7 @@ export class Explainer {
 	private _allModeFlag: boolean = true;
 	private _disposeFlag: boolean = true;
 	private generateBtn: HTMLDivElement = document.createElement("div");
+	private saveBtn: HTMLDivElement = document.createElement("div");
 	private _lastGeneratedCode: string = "";
 	private _explainerIdx: number = 0;
 	private _lastHoveredBend: number = -1;
@@ -125,7 +127,6 @@ export class Explainer {
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
-		this._editor.onDidBlurEditorText(() => { this.onDidChangeModel(); });
 		if (this._ghostTextController == null) {
 			return;
 		} else {
@@ -141,9 +142,53 @@ export class Explainer {
 		this.editorDiv = this._editor.getDomNode();
 		if (!(this._activateFlag)) return;
 		this.createGeneraterBtn();
+		this.createSaveBtn();
 	}
 
 	private editorDiv = this._editor.getDomNode();
+	private createSaveBtn() {
+		document.getElementById("saveBtn")?.remove();
+		if (this.editorDiv === undefined || this.editorDiv === null) {
+			this.editorDiv = this._editor.getDomNode();
+		};
+		if (this.editorDiv !== null) {
+			var editorParent = this.editorDiv.parentElement;
+			if (editorParent !== null) {
+				var editorParent1 = editorParent.parentElement;
+				if (editorParent1 !== null) {
+					var editorParent2 = editorParent1.parentElement;
+					if (editorParent2 !== null) {
+						editorParent2.insertBefore(this.saveBtn, editorParent2.firstChild);
+					}
+				} else {
+					return;
+				}
+			} else {
+				return;
+			}
+		}
+		this.saveBtn.id = "saveBtn";
+		this.saveBtn.style.position = "absolute";
+		this.saveBtn.style.top = "35px";
+		this.saveBtn.style.right = "0px";
+		this.saveBtn.style.width = "20px";
+		this.saveBtn.style.height = "20px";
+		this.saveBtn.style.borderRadius = "5px";
+		this.saveBtn.style.zIndex = "100";
+		this.saveBtn.style.cursor = "pointer";
+		this.saveBtn.style.textAlign = "center";
+		this.saveBtn.style.lineHeight = "20px";
+		this.saveBtn.style.fontSize = "12px";
+
+
+		// Add text
+		this.saveBtn.innerText = "Save";
+
+		this.saveBtn.addEventListener("click", () => {
+			this.saveLog();
+		});
+	}
+
 	private createGeneraterBtn() {
 		if (!(this._activateFlag)) return;
 		document.getElementById("generateBtn")?.remove();
@@ -169,7 +214,7 @@ export class Explainer {
 		this.generateBtn.id = "generateBtn";
 		this.generateBtn.style.position = "absolute";
 		this.generateBtn.style.top = "35px";
-		this.generateBtn.style.right = "0px";
+		this.generateBtn.style.right = "30px";
 		this.generateBtn.style.width = "20px";
 		this.generateBtn.style.height = "20px";
 		this.generateBtn.style.borderRadius = "5px";
@@ -232,7 +277,7 @@ export class Explainer {
 		});
 	}
 
-	private onDidChangeModel() {
+	private saveLog() {
 		this.disposeExplanations();
 		this.disposeAllExplainer();
 		let csvContent = "data:text/csv;charset=utf-8,";
@@ -247,7 +292,7 @@ export class Explainer {
 		link.setAttribute("href", encodedUri);
 		link.setAttribute("download", "log.csv");
 		document.body.appendChild(link);
-		// link.click();
+		link.click();
 		document.getElementById("tempLink")?.remove();
 	}
 
@@ -326,7 +371,6 @@ export class Explainer {
 					var boxRight = -1;
 					singleFlag = true;
 					activity = "expression";
-					console.log(singleExplainerTopPx);
 				} else {
 					var singleExplainerTopPx = -1;
 					var singleExplainerBottomPx = -1;
@@ -517,10 +561,8 @@ export class Explainer {
 
 		if (!(currentLineText == undefined)) {
 			var currentSpaces = currentLineText.length - currentLineText.trimStart().length;
-			console.log(currentSpaces, currentLineText);
 			if (PosX <= currentSpaces * this._codeTextRatio
 				|| currentLineText.length * this._codeTextRatio <= PosX) {
-				console.log("outside code", PosX, currentSpaces * this._codeTextRatio, currentLineText.length * this._codeTextRatio);
 				if (this._allModeFlag && this.box1 !== undefined) {
 					this.box1.style.display = "none";
 				} else if (this.box2 !== undefined) {
@@ -715,7 +757,6 @@ export class Explainer {
 				} else {
 					drawBends(currentIdx, value, this.lineHeight, explainType, this.contentDiv.offsetWidth);
 				}
-				console.log("single");
 				this.recordGeneratedCode();
 			});
 		} else {
@@ -779,6 +820,7 @@ export class Explainer {
 				realCode += 1;
 				let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 				summaryArrEach.then((value) => {
+					console.log(value, lineNb, splitLines[i]);
 					if (value && this._allExplain) {
 						this._allExplain[lineNb] = value;
 					}
@@ -825,12 +867,13 @@ export class Explainer {
 		for (var i = 0; i < guildLineArr.length; i++) {
 			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 			line.setAttribute('x1', `${guildLineArr[i][1]}`);
-			line.setAttribute('y1', String(this._guildLineHeight + 1));
+			line.setAttribute('y1', String(this._guildLineHeight));
 			line.setAttribute('x2', `${guildLineArr[i][0]}`);
-			line.setAttribute('y2', '-3');
+			line.setAttribute('y2', '0');
 			line.setAttribute('stroke-linecap', 'round');
 			line.style.stroke = guildLineArr[i][2]; // Line color
 			line.style.strokeWidth = '1px'; // Line width
+			line.id = 'leader_' + i;
 
 			// Add the line to the SVG element
 			svg.appendChild(line);
@@ -969,8 +1012,12 @@ export class Explainer {
 						bend.style.color = "rgb(60, 60, 60, 0.8)";
 						bend.style.borderTop = '2px solid rgb(60, 60, 60, 0.8)';
 						var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bend.id.split("_")[2]);
+						var leaderLine = borderDiv?.querySelector<HTMLElement>("#leader_" + bend.id.split("_")[2]);
 						if (codeLineDiv) {
 							codeLineDiv.style.borderTop = '2px solid rgb(60, 60, 60, 0.8)';
+						}
+						if (leaderLine) {
+							leaderLine.style.stroke = 'rgb(60, 60, 60, 0.8)';
 						}
 					}
 				});
@@ -986,8 +1033,12 @@ export class Explainer {
 					bend.style.color = "rgb(212,212,212,1)";
 					bend.style.borderTop = '2px solid ' + colorHue[bendIdx % colorHue.length];
 					var codeLineDiv = borderDiv?.querySelector<HTMLElement>("#codeLine" + bendIdx);
+					var leaderLine = borderDiv?.querySelector<HTMLElement>("#leader_" + bendIdx);
 					if (codeLineDiv) {
 						codeLineDiv.style.borderTop = '2px solid ' + colorHue[bendIdx % colorHue.length];
+					}
+					if (leaderLine) {
+						leaderLine.style.stroke = colorHue[bendIdx % colorHue.length];
 					}
 				});
 			});
@@ -1166,7 +1217,7 @@ export class Explainer {
 			this.contentDiv.style.display = 'block';
 
 			if (type == "multi") {
-				var explainStart = getStartPos(eachLine);
+				var explainStart = getStartPos(eachLine, "wide");
 				var trueVisableEditor = this.parent[0].parentElement;
 				var editorWidth = Number(trueVisableEditor?.style.width.replace("px", ""));
 				var explainWidth = editorWidth - explainStart;

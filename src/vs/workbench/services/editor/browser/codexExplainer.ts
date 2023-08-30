@@ -187,15 +187,17 @@ export async function OpenaiFetchAPI(code: string, explainType: string, targetCo
 			'"""\n' +
 			"\nOutput:";
 	} else {
-		var prompt = "Please split the following line of code and explain the unrecognizable vocabulary and " +
-			"structures inside following line of code with less than 10 words.\n" +
+		var prompt = "Please dissect the following line of code, and explain the unfamiliar vocabulary and structures with " +
+			"less than 15 words each. Also, provide detailed instructions and constraints for choosing values of sensitive parameters. " +
+			"If a parameter value is incorrect, remind the user to change it.\n" +
 			"Prompt:\n" +
-			"tr = pandas.concat(pred.link_df_iter(frames, 0.5))\n" +
+			"cv2.GaussianBlur(img, (15, 15), 0)\n" +
 			"Output:\n" +
-			"tr = pandas.concat $#$Concatenate DataFrames.\n" +
-			"pred.link_df_iter $#$Iterate over a list of DataFrames.\n" +
+			"cv2.GaussianBlur $#$Apply function to smooth image.\n" +
+			"img $#$Image to be blurred.\n" +
+			"(15, 15) $#$Kernel size, must be odd and positive.\n" +
 			"frames $#$A list of DataFrames.\n" +
-			"0.5 $#$The threshold for the link score.\n" +
+			"0 $#$SigmaX, 0 auto-calculates from kernel size.\n" +
 			"Prompt:\n";
 		var promptSummary = prompt + code.trim() + "\nOutput:";
 	}
