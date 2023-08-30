@@ -3,6 +3,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { Range } from 'vs/editor/editor.api';
 //import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 
 const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } => {
@@ -114,6 +115,7 @@ export class Explainer {
 		activity: string
 	}[] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
+	private lastSuggestedGhostText: string | null = null;
 	constructor(
 		private readonly _editor: ICodeEditor
 		//private _expandFlag: boolean,
@@ -127,6 +129,25 @@ export class Explainer {
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
+		this._editor.onDidChangeModelContent((event) => {
+			var acceptedText = event.changes.map(change => change.text).join();
+			const textModel = this._editor.getModel();
+			const firstChange = event.changes[0];
+			if (textModel !== null && firstChange !== undefined) {
+				const oldText = textModel.getValueInRange(new Range(
+					firstChange.range.startLineNumber,
+					firstChange.range.startColumn,
+					firstChange.range.endLineNumber,
+					firstChange.range.endColumn));
+				if (acceptedText.startsWith(oldText)) {
+					acceptedText = acceptedText.substring(oldText.length);
+				}
+				if (this.lastSuggestedGhostText !== null && acceptedText === this.lastSuggestedGhostText) {
+					this.lastSuggestedGhostText = null;
+					console.log("Accepted ghost text!", this.lastSuggestedGhostText);
+				}
+			}
+		});
 		if (this._ghostTextController == null) {
 			return;
 		} else {
@@ -688,6 +709,9 @@ export class Explainer {
 		if (this._disposeFlag == false) return;
 		const activeModel = this._ghostTextController?.activeModel;
 		var ghostText = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines;
+		if (ghostText !== undefined && ghostText !== null) {
+			this.lastSuggestedGhostText = ghostText.join("");
+		}
 		var generatedCode = ghostText?.join("\n");
 		if (ghostText === undefined || generatedCode === undefined || generatedCode.trim() == "") {
 			this.disposeExplanations();
