@@ -54,7 +54,6 @@ function getStartPos(textArray: string[], require: string = "none") {
 	if (max >= placeToStart) {
 		return placeToStart * 8;
 	} else {
-		console.log("max: " + max);
 		return max * 8;
 	}
 }
@@ -74,6 +73,7 @@ export class Explainer {
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
 	private contentDivMulti: HTMLDivElement | undefined = undefined;
 	private allText: string = "";
+	//private lastSuggestedGhostText: string | null = null;
 	private lineHeight: number = 18;
 	private _boxRange: undefined | [number, number] = undefined;
 	private _ghostTextController: GhostTextController | null = null;
@@ -129,61 +129,6 @@ export class Explainer {
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
-		this._editor.onDidChangeModelContent((event) => {
-			/*
-			 * Log the positions of generated code.
-			 */
-			const editorTextModel = this._editor.getModel();
-			if (editorTextModel === null || editorTextModel === undefined) {
-				return;
-			}
-			const decorations = editorTextModel.getAllDecorations();
-			const generationDecorations = decorations.filter((decoration) => {
-				return decoration.options.className === 'generated-code';
-			});
-			console.log("Logging generation decorations:");
-			for (const dec of generationDecorations) {
-				for (var line = dec.range.startLineNumber; line <= dec.range.endLineNumber; line++) {
-					const left = line === dec.range.startLineNumber ?
-						this._editor.getOffsetForColumn(line, dec.range.startColumn) :
-						this._editor.getOffsetForColumn(line, 1);
-					const right = line === dec.range.endLineNumber ?
-						this._editor.getOffsetForColumn(line, dec.range.endColumn) :
-						this._editor.getOffsetForColumn(line, editorTextModel.getLineLength(line));
-					const top = this._editor.getTopForLineNumber(line);
-					const bottom = this._editor.getBottomForLineNumber(line);
-					console.log(dec.options.hoverMessage, left, right, top, bottom);
-				}
-			}
-			/*
-			 * Add decorations for tracking generated code.
-			 */
-			if (this.lastSuggestedGhostText === null) {
-				return;
-			}
-			for (const change of event.changes) {
-				const textAfter = change.text.trimStart();
-				var updatedTextStart = editorTextModel.getPositionAt(change.rangeOffset);
-				var updatedTextEnd = editorTextModel.getPositionAt(change.rangeOffset + textAfter.length);
-				if (textAfter !== this.lastSuggestedGhostText) {
-					return;
-				}
-				console.log("Accepted ghost text!", this.lastSuggestedGhostText);
-				this.lastSuggestedGhostText = null;
-				const updatedRange = new Range(updatedTextStart.lineNumber, updatedTextStart.column, updatedTextEnd.lineNumber, updatedTextEnd.column);
-				this._editor.createDecorationsCollection([{
-					range: updatedRange,
-					options: {
-						description: "Generated content",
-						before: { content: "<<" },
-						after: { content: ">>" },
-						inlineClassName: 'myLineDecoration',
-						className: "generated-code",
-						hoverMessage: { value: textAfter },
-					}
-				}])
-			}
-		});
 		if (this._ghostTextController == null) {
 			return;
 		} else {
@@ -366,9 +311,18 @@ export class Explainer {
 		let currentTime: string = time.toLocaleTimeString('en-US', { hour12: false });
 		let millis = time.getUTCMilliseconds()
 		var recordTime = currentTime + ":" + String(millis);
-		var defaultLeft = 48;
+		var defaultLeft = 48 + 66;
 		var defaultTop = 85;
 		var activity = "others";
+
+		var leftPanels = document.getElementsByClassName("monaco-scrollable-element");
+		for (var i = 0; i < leftPanels.length; i++) {
+			var leftPanel = leftPanels[i] as HTMLElement;
+			if (leftPanel.parentElement?.classList.contains("monaco-list")) {
+				defaultLeft = defaultLeft + leftPanel.getBoundingClientRect()["width"];
+				break;
+			}
+		}
 
 		if (codingFlag) {
 			var newRecord = {
@@ -612,6 +566,14 @@ export class Explainer {
 			return;
 		}
 		var PosX = mouseEvent.event.posx - 66 - 48;
+		var leftPanels = document.getElementsByClassName("monaco-scrollable-element");
+		for (var i = 0; i < leftPanels.length; i++) {
+			var leftPanel = leftPanels[i] as HTMLElement;
+			if (leftPanel.parentElement?.classList.contains("monaco-list")) {
+				PosX = PosX - leftPanel.getBoundingClientRect()["width"];
+				break;
+			}
+		}
 		//var allText = this._editor.getValue() + this._lastGeneratedCode;
 		var temps = this.allText.replace(/\\n/g, '\n');
 		var currentLineText = temps.split("\n")[realLineNum - 1];
@@ -620,6 +582,7 @@ export class Explainer {
 			var currentSpaces = currentLineText.length - currentLineText.trimStart().length;
 			if (PosX <= currentSpaces * this._codeTextRatio
 				|| currentLineText.length * this._codeTextRatio <= PosX) {
+				//console.log(PosX, currentSpaces * this._codeTextRatio, currentLineText.length * this._codeTextRatio);
 				if (this._allModeFlag && this.box1 !== undefined) {
 					this.box1.style.display = "none";
 				} else if (this.box2 !== undefined) {
@@ -880,7 +843,6 @@ export class Explainer {
 				realCode += 1;
 				let summaryArrEach = OpenaiFetchAPI(splitLines[i], "single");
 				summaryArrEach.then((value) => {
-					console.log(value, lineNb, splitLines[i]);
 					if (value && this._allExplain) {
 						this._allExplain[lineNb] = value;
 					}

@@ -188,16 +188,15 @@ export async function OpenaiFetchAPI(code: string, explainType: string, targetCo
 			"\nOutput:";
 	} else {
 		var prompt = "Please dissect the following line of code, and explain the unfamiliar vocabulary and structures with " +
-			"less than 15 words each. Also, provide detailed instructions and constraints for choosing values of sensitive parameters. " +
-			"If a parameter value is incorrect, remind the user to change it.\n" +
+			"less than 15 words each. Include constraints for parameter values and describe how changes in these parameters will affect the output\n" +
 			"Prompt:\n" +
 			"cv2.GaussianBlur(img, (15, 15), 0)\n" +
 			"Output:\n" +
 			"cv2.GaussianBlur $#$Apply function to smooth image.\n" +
 			"img $#$Image to be blurred.\n" +
-			"(15, 15) $#$Kernel size, must be odd and positive.\n" +
+			"(15, 15) $#$Kernel size, must be odd and positive. Increasing the kernel size will make the output image more blurred.\n" +
 			"frames $#$A list of DataFrames.\n" +
-			"0 $#$SigmaX, 0 auto-calculates from kernel size.\n" +
+			"0 $#$SigmaX, 0 auto-calculates from kernel size. Increasing the sigmaX value will make the output image more blurred.\n" +
 			"Prompt:\n";
 		var promptSummary = prompt + code.trim() + "\nOutput:";
 	}
