@@ -3,7 +3,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { OpenaiFetchAPI, drawBends, OpenaiStreamAPI, animateDots } from 'vs/workbench/services/editor/browser/codexExplainer';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-import { Range } from 'vs/editor/editor.api';
 //import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 
 const staticsLength = (arr: number[]): { median: number; mean: number; min: number; max: number } => {
@@ -73,7 +72,7 @@ export class Explainer {
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
 	private contentDivMulti: HTMLDivElement | undefined = undefined;
 	private allText: string = "";
-	//private lastSuggestedGhostText: string | null = null;
+	private lastSuggestedGhostText: string | null = null;
 	private lineHeight: number = 18;
 	private _boxRange: undefined | [number, number] = undefined;
 	private _ghostTextController: GhostTextController | null = null;
@@ -115,7 +114,6 @@ export class Explainer {
 		activity: string
 	}[] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
-	private lastSuggestedGhostText: string | null = null;
 	constructor(
 		private readonly _editor: ICodeEditor
 		//private _expandFlag: boolean,
@@ -126,9 +124,60 @@ export class Explainer {
 		this._editor.onDidDispose(() => { this.dispose(); });
 		this._editor.onMouseDown(() => { this.onMouseDown(); });
 		this._editor.onMouseMove((e: IEditorMouseEvent) => { this.onMouseMove(e); });
+		this._editor.onDidBlurEditorText(() => { this.onDidChangeModel(); });
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
+		this._editor.onDidChangeModelContent((event) => {
+			const editorTextModel = this._editor.getModel();
+			if (editorTextModel === null || editorTextModel === undefined) {
+				return;
+			}
+			const decorations = editorTextModel.getAllDecorations();
+			const generationDecorations = decorations.filter((decoration) => {
+				return decoration.options.className === 'generated-code';
+			});
+			console.log("Logging generation decorations:");
+			for (const dec of generationDecorations) {
+				for (var line = dec.range.startLineNumber; line <= dec.range.endLineNumber; line++) {
+					const left = line === dec.range.startLineNumber ?
+						this._editor.getOffsetForColumn(line, dec.range.startColumn) :
+						this._editor.getOffsetForColumn(line, 1);
+					const right = line === dec.range.endLineNumber ?
+						this._editor.getOffsetForColumn(line, dec.range.endColumn) :
+						this._editor.getOffsetForColumn(line, editorTextModel.getLineLength(line));
+					const top = this._editor.getTopForLineNumber(line);
+					const bottom = this._editor.getBottomForLineNumber(line);
+					console.log(dec.options.hoverMessage, left, right, top, bottom);
+				}
+			}
+			if (this.lastSuggestedGhostText === null) {
+				return;
+			}
+			for (const change of event.changes) {
+				const textAfter = change.text.trimStart();
+				//var updatedTextStart = editorTextModel.getPositionAt(change.rangeOffset);
+				//var updatedTextEnd = editorTextModel.getPositionAt(change.rangeOffset + textAfter.length);
+				if (textAfter !== this.lastSuggestedGhostText) {
+					return;
+				}
+				console.log("Accepted ghost text!", this.lastSuggestedGhostText);
+				this.lastSuggestedGhostText = null;
+				/* const updatedRange = new Range(updatedTextStart.lineNumber, updatedTextStart.column, updatedTextEnd.lineNumber, updatedTextEnd.column);
+				this._editor.createDecorationsCollection([{
+					range: updatedRange,
+					options: {
+						description: "Generated content",
+						before: { content: "<<" },
+						after: { content: ">>" },
+						inlineClassName: 'myLineDecoration',
+						className: "generated-code",
+						hoverMessage: { value: textAfter },
+					}
+				}]) */
+			}
+		});
+
 		if (this._ghostTextController == null) {
 			return;
 		} else {
@@ -314,12 +363,18 @@ export class Explainer {
 		var defaultLeft = 48 + 66;
 		var defaultTop = 85;
 		var activity = "others";
+		var panelLeft = 48;
+		var panelRight = 48;
+		var panelTop = 35 + 35;
+		var panelBottom = panelTop;
 
 		var leftPanels = document.getElementsByClassName("monaco-scrollable-element");
 		for (var i = 0; i < leftPanels.length; i++) {
 			var leftPanel = leftPanels[i] as HTMLElement;
 			if (leftPanel.parentElement?.classList.contains("monaco-list")) {
 				defaultLeft = defaultLeft + leftPanel.getBoundingClientRect()["width"];
+				panelRight = panelRight + leftPanel.getBoundingClientRect()["width"];
+				panelBottom = panelBottom + leftPanel.getBoundingClientRect()["height"];
 				break;
 			}
 		}
@@ -406,15 +461,16 @@ export class Explainer {
 				var ghostRightPx = boxLeft;
 				activity = "all";
 			} else {
+				// EasyCode is activated
 				var ghostTopPx = ghostTextPosition.top;
 				var ghostBottomPx = ghostTextPosition.bottom;
 				var ghostLeftPx = ghostTextPosition.left;
 				var ghostRightPx = ghostTextPosition.right;
-				var explainerBottom = -1;
-				var boxTop = -1;
-				var boxBottom = -1;
-				var boxLeft = -1;
-				var boxRight = -1;
+				var explainerBottom = panelBottom;
+				var boxTop = panelTop;
+				var boxBottom = panelBottom;
+				var boxLeft = panelLeft;
+				var boxRight = panelRight;
 				activity = "reading code";
 			}
 
@@ -687,6 +743,10 @@ export class Explainer {
 		//console.log(this._editor.getLayoutInfo(), this._editor.getContentWidth());
 	}
 
+	private onDidChangeModel() {
+		this.recordGeneratedCode();
+	}
+
 	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', numberSections: number = 1) {
 		if (!(this._activateFlag)) return;
 		if (type == "multi" && multiLineStreamFlag) {
@@ -708,9 +768,6 @@ export class Explainer {
 		if (this._disposeFlag == false) return;
 		const activeModel = this._ghostTextController?.activeModel;
 		var ghostText = activeModel?.inlineCompletionsModel.ghostText?.parts[0].lines;
-		if (ghostText !== undefined && ghostText !== null) {
-			this.lastSuggestedGhostText = ghostText.join("");
-		}
 		var generatedCode = ghostText?.join("\n");
 		if (ghostText === undefined || generatedCode === undefined || generatedCode.trim() == "") {
 			this.disposeExplanations();
