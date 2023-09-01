@@ -84,7 +84,7 @@ export class Explainer {
 	private _box0OriginalPostion: number = 0;
 	private _box1OriginalPostion: number = 0;
 	private _box2OriginalPostion: number = 0;
-	private _activateFlag: boolean = true; //Change this to false when using ChatGPT - EasyCode
+	private _activateFlag: boolean = false; //Change this to false when using ChatGPT - EasyCode
 	private _coloredOneLineFlag: boolean = true;
 	private _multiLineStreamFlag: boolean = true;
 	private _allModeFlag: boolean = true;
@@ -145,9 +145,9 @@ export class Explainer {
 			this._ghostTextController.onActiveModelDidChange(console.log);
 		}
 		this.editorDiv = this._editor.getDomNode();
+		this.createSaveBtn();
 		if (!(this._activateFlag)) return;
 		this.createGeneraterBtn();
-		this.createSaveBtn();
 	}
 
 	private editorDiv = this._editor.getDomNode();
@@ -184,7 +184,6 @@ export class Explainer {
 		this.saveBtn.style.textAlign = "center";
 		this.saveBtn.style.lineHeight = "20px";
 		this.saveBtn.style.fontSize = "12px";
-
 
 		// Add text
 		this.saveBtn.innerText = "Save";
@@ -301,10 +300,48 @@ export class Explainer {
 		document.getElementById("tempLink")?.remove();
 	}
 
+	private mergeNewArray(newArray: [number, number], acceptedCode: [number, number][]) {
+		let isOverlapping = false;
+
+		for (let i = 0; i < acceptedCode.length; i++) {
+			let start_num = acceptedCode[i][0];
+			let end_num = acceptedCode[i][1];
+
+			if (newArray[0] >= start_num && newArray[1] <= end_num) {
+				// newArray is inside an existing array
+				isOverlapping = true;
+				break;
+			} else if (newArray[0] <= start_num && newArray[1] >= end_num) {
+				// newArray includes an existing array
+				acceptedCode[i][0] = newArray[0];
+				acceptedCode[i][1] = newArray[1];
+				isOverlapping = true;
+				break;
+			} else if (newArray[0] <= start_num && newArray[1] <= end_num) {
+				// newArray overlaps with the start of an existing array
+				acceptedCode[i][0] = newArray[0];
+				isOverlapping = true;
+				break;
+			} else if (newArray[0] >= start_num && newArray[1] >= end_num) {
+				// newArray overlaps with the end of an existing array
+				acceptedCode[i][1] = newArray[1];
+				isOverlapping = true;
+				break;
+			} else {
+				continue;
+			}
+		}
+
+		if (!isOverlapping) {
+			acceptedCode.push(newArray);
+		}
+		return acceptedCode;
+	}
+
 	private getVisableAcceptedCode(defaultTop: number) {
 		var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var visableEnd = this._editor.getVisibleRanges()[0].endLineNumber;
-		var acceptedCode = [];
+		var acceptedCode: [number, number][] = [];
 		for (var i = 0; i < this._allAcceptedCode.length; i++) {
 			if (this._allAcceptedCode[i][0] >= visableStart && this._allAcceptedCode[i][0] <= visableEnd) {
 				var start = this._allAcceptedCode[i][0],
@@ -321,10 +358,9 @@ export class Explainer {
 			} else {
 				continue;
 			}
-
 			var top = (start - visableStart) * this.lineHeight + defaultTop;
 			var bottom = (end - visableStart + 1) * this.lineHeight + defaultTop;
-			acceptedCode.push([top, bottom]);
+			acceptedCode = this.mergeNewArray([top, bottom], acceptedCode);
 		}
 		return String(acceptedCode);
 	}
@@ -876,6 +912,7 @@ export class Explainer {
 			var mousePos = this._editor.getPosition();
 			this.updateAllAcceptCode(mousePos?.lineNumber, "enter");
 		}
+		this.recordGeneratedCode();
 	}
 
 	private generateAllExplanations() {
@@ -930,7 +967,6 @@ export class Explainer {
 				if (key == "enter") {
 					this._allAcceptedCode[i][1] += 1;
 				} else if (key == "delete") {
-					console.log(this._fileLength, this._editor.getValue().split("\n").length);
 					if (!(this._fileLength == this._editor.getValue().split("\n").length)) {
 						this._allAcceptedCode[i][1] -= 1;
 					}
