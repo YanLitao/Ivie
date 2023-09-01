@@ -72,13 +72,14 @@ export class Explainer {
 	private borderDivMulti: HTMLDivElement | undefined = undefined;
 	private contentDivMulti: HTMLDivElement | undefined = undefined;
 	private allText: string = "";
-	private lastSuggestedGhostText: string | null = null;
 	private lineHeight: number = 18;
 	private _boxRange: undefined | [number, number] = undefined;
 	private _ghostTextController: GhostTextController | null = null;
 	private _summaryArr: Promise<void | [number, number, string][]> | undefined = undefined;
 	private _multiSingleExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
 	private _allExplain: { [lineNb: string]: void | [number, number, string][] } | undefined = undefined;
+	private _allAcceptedCode: [number, number][] = [];
+	private _lastGhostText: [number, number] = [-1, -1];
 	private _boxOriginalPostion: number = 0;
 	private _box0OriginalPostion: number = 0;
 	private _box1OriginalPostion: number = 0;
@@ -95,6 +96,7 @@ export class Explainer {
 	private _lastHoveredBend: number = -1;
 	private _codeTextRatio: number = 7.225;
 	private _guildLineHeight: number = 8;
+	private _fileLength: number = 0;
 	private records: {
 		time: string,
 		ghostTopPx: number,
@@ -111,7 +113,8 @@ export class Explainer {
 		singleExplainerBottomPx: number,
 		singleExplainerLeft: number,
 		singleExplainerRight: number,
-		activity: string
+		activity: string,
+		acceptedCode: string
 	}[] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
 	constructor(
@@ -120,7 +123,7 @@ export class Explainer {
 	) {
 		this._editor.onDidScrollChange(() => { this.onDidScrollChange(); });
 		this._editor.onKeyDown((e: IKeyboardEvent) => { this.onKeyDown(e); });
-		this._editor.onKeyUp(() => { this.onKeyUp(); });
+		this._editor.onKeyUp((e: IKeyboardEvent) => { this.onKeyUp(e); });
 		this._editor.onDidDispose(() => { this.dispose(); });
 		this._editor.onMouseDown(() => { this.onMouseDown(); });
 		this._editor.onMouseMove((e: IEditorMouseEvent) => { this.onMouseMove(e); });
@@ -128,55 +131,6 @@ export class Explainer {
 		this._editor.onDidLayoutChange(() => { this.onLayoutChange(); });
 		//this._editor.onDidContentSizeChange((e: IContentSizeChangedEvent) => { this.onContentSizeChange(e); });
 		this._ghostTextController = GhostTextController.get(this._editor);
-		this._editor.onDidChangeModelContent((event) => {
-			const editorTextModel = this._editor.getModel();
-			if (editorTextModel === null || editorTextModel === undefined) {
-				return;
-			}
-			const decorations = editorTextModel.getAllDecorations();
-			const generationDecorations = decorations.filter((decoration) => {
-				return decoration.options.className === 'generated-code';
-			});
-			console.log("Logging generation decorations:");
-			for (const dec of generationDecorations) {
-				for (var line = dec.range.startLineNumber; line <= dec.range.endLineNumber; line++) {
-					const left = line === dec.range.startLineNumber ?
-						this._editor.getOffsetForColumn(line, dec.range.startColumn) :
-						this._editor.getOffsetForColumn(line, 1);
-					const right = line === dec.range.endLineNumber ?
-						this._editor.getOffsetForColumn(line, dec.range.endColumn) :
-						this._editor.getOffsetForColumn(line, editorTextModel.getLineLength(line));
-					const top = this._editor.getTopForLineNumber(line);
-					const bottom = this._editor.getBottomForLineNumber(line);
-					console.log(dec.options.hoverMessage, left, right, top, bottom);
-				}
-			}
-			if (this.lastSuggestedGhostText === null) {
-				return;
-			}
-			for (const change of event.changes) {
-				const textAfter = change.text.trimStart();
-				//var updatedTextStart = editorTextModel.getPositionAt(change.rangeOffset);
-				//var updatedTextEnd = editorTextModel.getPositionAt(change.rangeOffset + textAfter.length);
-				if (textAfter !== this.lastSuggestedGhostText) {
-					return;
-				}
-				console.log("Accepted ghost text!", this.lastSuggestedGhostText);
-				this.lastSuggestedGhostText = null;
-				/* const updatedRange = new Range(updatedTextStart.lineNumber, updatedTextStart.column, updatedTextEnd.lineNumber, updatedTextEnd.column);
-				this._editor.createDecorationsCollection([{
-					range: updatedRange,
-					options: {
-						description: "Generated content",
-						before: { content: "<<" },
-						after: { content: ">>" },
-						inlineClassName: 'myLineDecoration',
-						className: "generated-code",
-						hoverMessage: { value: textAfter },
-					}
-				}]) */
-			}
-		});
 
 		if (this._ghostTextController == null) {
 			return;
@@ -347,6 +301,34 @@ export class Explainer {
 		document.getElementById("tempLink")?.remove();
 	}
 
+	private getVisableAcceptedCode(defaultTop: number) {
+		var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
+		var visableEnd = this._editor.getVisibleRanges()[0].endLineNumber;
+		var acceptedCode = [];
+		for (var i = 0; i < this._allAcceptedCode.length; i++) {
+			if (this._allAcceptedCode[i][0] >= visableStart && this._allAcceptedCode[i][0] <= visableEnd) {
+				var start = this._allAcceptedCode[i][0],
+					end = this._allAcceptedCode[i][1];
+			} else if (this._allAcceptedCode[i][0] < visableStart && this._allAcceptedCode[i][1] > visableEnd) {
+				var start = visableStart,
+					end = visableEnd;
+			} else if (this._allAcceptedCode[i][0] < visableStart && this._allAcceptedCode[i][1] >= visableStart && this._allAcceptedCode[i][1] <= visableEnd) {
+				var start = visableStart,
+					end = this._allAcceptedCode[i][1];
+			} else if (this._allAcceptedCode[i][0] >= visableStart && this._allAcceptedCode[i][0] <= visableEnd && this._allAcceptedCode[i][1] > visableEnd) {
+				var start = this._allAcceptedCode[i][0],
+					end = visableEnd;
+			} else {
+				continue;
+			}
+
+			var top = (start - visableStart) * this.lineHeight + defaultTop;
+			var bottom = (end - visableStart + 1) * this.lineHeight + defaultTop;
+			acceptedCode.push([top, bottom]);
+		}
+		return String(acceptedCode);
+	}
+
 	private recordGeneratedCode(
 		codingFlag: boolean = false,
 		ghostTextPosition: {
@@ -379,6 +361,8 @@ export class Explainer {
 			}
 		}
 
+		var acceptedCode = this.getVisableAcceptedCode(defaultTop);
+
 		if (codingFlag) {
 			var newRecord = {
 				"time": recordTime,
@@ -396,7 +380,8 @@ export class Explainer {
 				"singleExplainerBottomPx": -1,
 				"singleExplainerLeft": -1,
 				"singleExplainerRight": -1,
-				"activity": "coding"
+				"activity": "coding",
+				"acceptedCode": acceptedCode
 			};
 			this.records.push(newRecord);
 			return;
@@ -521,6 +506,7 @@ export class Explainer {
 				"singleExplainerLeft": singleExplainerLeft,
 				"singleExplainerRight": singleExplainerRight,
 				"activity": activity,
+				"acceptedCode": acceptedCode
 			};
 			this.records.push(newRecord);
 		}
@@ -791,6 +777,7 @@ export class Explainer {
 				right: ghostTextLeft + ghostTextWidth
 			}
 			this.recordGeneratedCode(false, ghostTextPosition);
+			this._lastGhostText = [realLineNum, realLineNum + ghostTextLength - 1];
 			return;
 		}
 		if (generatedCode.trim() == this._lastGeneratedCode.trim() && this.box !== undefined) {
@@ -809,6 +796,8 @@ export class Explainer {
 		var realLineNum = mousePos.lineNumber;
 		var allTextArr = this._editor.getValue().split("\n");
 		this.allText = allTextArr.slice(0, realLineNum - 1).join("\n") + "\n" + generatedCode + allTextArr.slice(realLineNum - 1).join("\n");
+		var currentToTop = this._editor.getScrollTop();
+		this._lastGhostText = [realLineNum, realLineNum + generatedCodeLength - 1];
 
 		if (ghostText.length == 1) {
 			var explainType = 'single';
@@ -872,8 +861,21 @@ export class Explainer {
 		}
 	}
 
-	private onKeyUp() {
+	private onKeyUp(e: IKeyboardEvent) {
 		this.disposeExplanations();
+		if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
+			return;
+		} else if (e.keyCode == 1) {
+			var mousePos = this._editor.getPosition();
+			this.updateAllAcceptCode(mousePos?.lineNumber, "delete");
+		} else if (e.keyCode == 2) {
+			// tab
+			this._allAcceptedCode.push(this._lastGhostText);
+		} else if (e.keyCode == 3) {
+			// enter
+			var mousePos = this._editor.getPosition();
+			this.updateAllAcceptCode(mousePos?.lineNumber, "enter");
+		}
 	}
 
 	private generateAllExplanations() {
@@ -920,7 +922,27 @@ export class Explainer {
 		this.recordGeneratedCode();
 	}
 
+	private updateAllAcceptCode(lineNumber: number | undefined, key: string = "") {
+		if (lineNumber === undefined) return;
+		if (key == "") return;
+		for (var i = 0; i < this._allAcceptedCode.length; i++) {
+			if (this._allAcceptedCode[i][0] <= lineNumber && lineNumber <= this._allAcceptedCode[i][1]) {
+				if (key == "enter") {
+					this._allAcceptedCode[i][1] += 1;
+				} else if (key == "delete") {
+					console.log(this._fileLength, this._editor.getValue().split("\n").length);
+					if (!(this._fileLength == this._editor.getValue().split("\n").length)) {
+						this._allAcceptedCode[i][1] -= 1;
+					}
+				}
+				break;
+			}
+		}
+		this.recordGeneratedCode();
+	}
+
 	private onKeyDown(e: IKeyboardEvent) {
+		this._fileLength = this._editor.getValue().split("\n").length;
 		this.disposeAllExplainer();
 		this.recordGeneratedCode(true);
 		if (this._allModeFlag == false) {
@@ -931,7 +953,6 @@ export class Explainer {
 				}
 			}
 		}
-
 		if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
 			this.generateAllExplanations();
 		}
