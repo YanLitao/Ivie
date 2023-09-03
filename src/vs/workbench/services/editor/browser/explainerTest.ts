@@ -84,7 +84,7 @@ export class Explainer {
 	private _box0OriginalPostion: number = 0;
 	private _box1OriginalPostion: number = 0;
 	private _box2OriginalPostion: number = 0;
-	private _activateFlag: boolean = false; //Change this to false when using ChatGPT - EasyCode
+	private _activateFlag: boolean = true; //Change this to false when using ChatGPT - EasyCode
 	private _coloredOneLineFlag: boolean = true;
 	private _multiLineStreamFlag: boolean = true;
 	private _allModeFlag: boolean = true;
@@ -281,26 +281,36 @@ export class Explainer {
 		});
 	}
 
-	private saveLog() {
+	private saveLog(flag: boolean = true) {
 		this.disposeExplanations();
 		this.disposeAllExplainer();
-		let csvContent = "data:text/csv;charset=utf-8,";
-		csvContent += Object.keys(this.records[0]).join(',') + "\r\n";
-		this.records.forEach(function (row) {
-			csvContent += Object.values(row).join(',') + "\r\n";
-		});
+		this.dispose();
+		if (flag) {
+			let csvContent = "data:text/csv;charset=utf-8,";
+			csvContent += Object.keys(this.records[0]).join(',') + "\r\n";
+			this.records.forEach(function (row) {
+				csvContent += Object.values(row).join(',') + "\r\n";
+			});
 
-		var encodedUri = encodeURI(csvContent);
-		var link = document.createElement("a");
-		link.id = "tempLink";
-		link.setAttribute("href", encodedUri);
-		link.setAttribute("download", "log.csv");
-		document.body.appendChild(link);
-		link.click();
-		document.getElementById("tempLink")?.remove();
+			var encodedUri = encodeURI(csvContent);
+			var link = document.createElement("a");
+			link.id = "tempLink";
+			link.setAttribute("href", encodedUri);
+			if (idOfExplainer !== undefined) {
+				var fileName = "log_" + idOfExplainer + ".csv";
+			} else {
+				var fileName = "log.csv";
+			}
+			link.setAttribute("download", fileName);
+			document.body.appendChild(link);
+			link.click();
+			document.getElementById("tempLink")?.remove();
+		} else {
+			console.log(this.records);
+		}
 	}
 
-	private mergeNewArray(newArray: [number, number], acceptedCode: [number, number][]) {
+	private mergeNewArray(newArray: [number, number, number, number], acceptedCode: [number, number, number, number][]) {
 		let isOverlapping = false;
 
 		for (let i = 0; i < acceptedCode.length; i++) {
@@ -338,10 +348,46 @@ export class Explainer {
 		return acceptedCode;
 	}
 
+	private addHorizontalInfo(acceptedCode: [number, number, number, number]) {
+		var leftPanels = document.getElementsByClassName("monaco-scrollable-element");
+		var defaultLeft = 48 + 73;
+		for (var i = 0; i < leftPanels.length; i++) {
+			var leftPanel = leftPanels[i] as HTMLElement;
+			if (leftPanel.parentElement?.classList.contains("monaco-list")) {
+				defaultLeft = defaultLeft + leftPanel.getBoundingClientRect()["width"];
+				break;
+			}
+		}
+		for (let i = 0; i < acceptedCode.length; i++) {
+			let start_num = acceptedCode[0];
+			let end_num = acceptedCode[1];
+			var allTextArr = this._editor.getValue().split("\n");
+			var codeRange = allTextArr.slice(start_num - 1, end_num);
+			var minLeft = 10000;
+			var maxRight = 0;
+			for (let j = 0; j < codeRange.length; j++) {
+				var line = codeRange[j];
+				var left = (line.length - line.trimStart().length) * this._codeTextRatio;
+				var right = line.length * this._codeTextRatio;
+				if (left < minLeft) {
+					minLeft = left;
+				}
+				if (right > maxRight) {
+					maxRight = right;
+				}
+			}
+			acceptedCode[2] = minLeft + defaultLeft;
+			acceptedCode[3] = maxRight + defaultLeft;
+		}
+		return acceptedCode;
+	}
+
 	private getVisableAcceptedCode(defaultTop: number) {
 		var visableStart = this._editor.getVisibleRanges()[0].startLineNumber;
 		var visableEnd = this._editor.getVisibleRanges()[0].endLineNumber;
-		var acceptedCode: [number, number][] = [];
+		var acceptedCode: [number, number, number, number][] = [];
+
+
 		for (var i = 0; i < this._allAcceptedCode.length; i++) {
 			if (this._allAcceptedCode[i][0] >= visableStart && this._allAcceptedCode[i][0] <= visableEnd) {
 				var start = this._allAcceptedCode[i][0],
@@ -360,7 +406,8 @@ export class Explainer {
 			}
 			var top = (start - visableStart) * this.lineHeight + defaultTop;
 			var bottom = (end - visableStart + 1) * this.lineHeight + defaultTop;
-			acceptedCode = this.mergeNewArray([top, bottom], acceptedCode);
+			var positionCode = this.addHorizontalInfo([start, end, 0, 0]);
+			acceptedCode = this.mergeNewArray([top, bottom, positionCode[2], positionCode[3]], acceptedCode);
 		}
 		return String(acceptedCode);
 	}
@@ -378,12 +425,12 @@ export class Explainer {
 		let currentTime: string = time.toLocaleTimeString('en-US', { hour12: false });
 		let millis = time.getUTCMilliseconds()
 		var recordTime = currentTime + ":" + String(millis);
-		var defaultLeft = 48 + 66;
-		var defaultTop = 85;
+		var defaultLeft = 48 + 73;
+		var defaultTop = 87;
 		var activity = "others";
 		var panelLeft = 48;
 		var panelRight = 48;
-		var panelTop = 35 + 35;
+		var panelTop = 30 + 35;
 		var panelBottom = panelTop;
 
 		var leftPanels = document.getElementsByClassName("monaco-scrollable-element");
@@ -766,7 +813,8 @@ export class Explainer {
 	}
 
 	private onDidChangeModel() {
-		this.recordGeneratedCode();
+		//this.recordGeneratedCode();
+		this.saveLog(false);
 	}
 
 	private async getExplain(text: string, div: HTMLDivElement, multiLineStreamFlag: boolean, type: string = 'multi', numberSections: number = 1) {
@@ -989,9 +1037,9 @@ export class Explainer {
 				}
 			}
 		}
-		if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
+		/* if (e.keyCode == 49 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) {
 			this.generateAllExplanations();
-		}
+		} */
 	}
 
 	private linkCodeToExplanations(guildLineArr: [number, number, string][]) {
