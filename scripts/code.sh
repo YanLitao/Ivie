@@ -14,6 +14,9 @@ else
 fi
 
 function code() {
+	local max=$1
+    shift
+
 	cd "$ROOT"
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -26,12 +29,12 @@ function code() {
 
 	# Get electron, compile, built-in extensions
 	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-		node build/lib/preLaunch.js
+		node build/lib/preLaunch.js 2>&1 >> /Users/litaoyan/Documents/Research/AI/Data/log_$max.txt
 	fi
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
-		exec "$CODE" build/builtin
+		exec "$CODE" build/builtin 2>&1 >> /Users/litaoyan/Documents/Research/AI/Data/log_$max.txt
 		return
 	fi
 
@@ -43,7 +46,7 @@ function code() {
 	export ELECTRON_ENABLE_LOGGING=1
 
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$CODE" . "$@" 2>&1 >> /Users/litaoyan/Documents/Research/AI/Data/log_$max.txt
 }
 
 function code-wsl()
@@ -71,12 +74,24 @@ function code-wsl()
 	fi
 }
 
+max=0
+for f in /Users/litaoyan/Documents/Research/AI/Data/log_*.txt; do
+	# extract the number from the file name
+	num=${f##*_}
+	num=${num%.txt}
+	# update max if num is greater than max
+	((num > max)) && max=$num
+done
+((max++))
+logfile="/Users/litaoyan/Documents/Research/AI/Data/log_$max.txt"
+
+# Now you can use $logfile variable in your script
 if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
 elif [ -f /mnt/wslg/versions.txt ]; then
 	code --disable-gpu "$@"
 else
-	code "$@"
+    code $max "$@" 2>&1 >> $logfile
 fi
 
 exit $?

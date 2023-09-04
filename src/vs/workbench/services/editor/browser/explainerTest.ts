@@ -306,7 +306,7 @@ export class Explainer {
 			link.click();
 			document.getElementById("tempLink")?.remove();
 		} else {
-			console.log(this.records);
+			console.log(JSON.stringify(this.records));
 		}
 	}
 

@@ -1,0 +1,11 @@
+Found --crash-reporter-directory argument. Setting crashDumps directory to be '/Users/litaoyan/Documents/Research/copilot_explainer/.profile-oss/crashes'
+[90m[main 2023-09-03T20:14:14.873Z][0m Starting extension host with pid 23546 (fork() took 2 ms).
+[90m[main 2023-09-03T20:14:36.684Z][0m Waiting for extension host with pid 23546 to exit.
+[90m[main 2023-09-03T20:14:36.809Z][0m Extension host with pid 23546 exited with code: 0, signal: null.
+Found --crash-reporter-directory argument. Setting crashDumps directory to be '/Users/litaoyan/Documents/Research/copilot_explainer/.profile-oss/crashes'
+[90m[main 2023-09-03T20:15:05.105Z][0m Starting extension host with pid 23725 (fork() took 2 ms).
+Renderer process killed - see https://www.electronjs.org/docs/tutorial/application-debugging for potential debugging information.
+Found --crash-reporter-directory argument. Setting crashDumps directory to be '/Users/litaoyan/Documents/Research/copilot_explainer/.profile-oss/crashes'
+[90m[main 2023-09-03T20:15:42.901Z][0m Starting extension host with pid 24061 (fork() took 2 ms).
+[90m[main 2023-09-03T20:15:51.653Z][0m Waiting for extension host with pid 24061 to exit.
+[90m[main 2023-09-03T20:15:51.670Z][0m Extension host with pid 24061 exited with code: 0, signal: null.
