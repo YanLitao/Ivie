@@ -97,25 +97,7 @@ export class Explainer {
 	private _codeTextRatio: number = 7.225;
 	private _guildLineHeight: number = 8;
 	private _fileLength: number = 0;
-	private records: {
-		time: string,
-		ghostTopPx: number,
-		ghostBottomPx: number,
-		ghostLeftPx: number,
-		ghostRightPx: number,
-		explainerTopNum: number,
-		explainerBottomNum: number,
-		explainerLeftPx: number,
-		explainerRightPx: number,
-		explainerTopPx: number,
-		explainerBottomPx: number,
-		singleExplainerTopPx: number,
-		singleExplainerBottomPx: number,
-		singleExplainerLeft: number,
-		singleExplainerRight: number,
-		activity: string,
-		acceptedCode: string
-	}[] = [];
+	private records: string[][] = [];
 	private parent: HTMLCollectionOf<Element> = document.getElementsByClassName("overflow-guard");
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -287,19 +269,43 @@ export class Explainer {
 		this.dispose();
 		if (flag) {
 			let csvContent = "data:text/csv;charset=utf-8,";
-			csvContent += Object.keys(this.records[0]).join(',') + "\r\n";
+			const newRecord = [
+				"time",
+				"ghostTopPx",
+				"ghostBottomPx",
+				"ghostLeftPx",
+				"ghostRightPx",
+				"explainerTopNum",
+				"explainerBottomNum",
+				"explainerTopPx",
+				"explainerBottomPx",
+				"explainerLeftPx",
+				"explainerRightPx",
+				"singleExplainerTopPx",
+				"singleExplainerBottomPx",
+				"singleExplainerLeft",
+				"singleExplainerRight",
+				"activity",
+				"acceptedCode"
+			];
+
+			// Using the keys from newRecord as the CSV headers
+			const headers = newRecord.join(',');
+			csvContent += headers + "\r\n";
+
 			this.records.forEach(function (row) {
-				csvContent += Object.values(row).join(',') + "\r\n";
+				csvContent += row.join(',') + "\r\n";
 			});
 
-			var encodedUri = encodeURI(csvContent);
-			var link = document.createElement("a");
+			const encodedUri = encodeURI(csvContent);
+			const link = document.createElement("a");
 			link.id = "tempLink";
 			link.setAttribute("href", encodedUri);
+			let fileName;
 			if (idOfExplainer !== undefined) {
-				var fileName = "log_" + idOfExplainer + ".csv";
+				fileName = "log_" + idOfExplainer + ".csv";
 			} else {
-				var fileName = "log.csv";
+				fileName = "log.csv";
 			}
 			link.setAttribute("download", fileName);
 			document.body.appendChild(link);
@@ -466,7 +472,14 @@ export class Explainer {
 				"activity": "coding",
 				"acceptedCode": acceptedCode
 			};
-			this.records.push(newRecord);
+			const recordArray: string[] = [];
+			for (let key in newRecord) {
+				if (newRecord.hasOwnProperty(key)) {
+					// Using a type assertion to tell TypeScript that key is definitely a key of newRecord
+					recordArray.push(String(newRecord[key as keyof typeof newRecord]));
+				}
+			}
+			this.records.push(recordArray);
 			return;
 		} else {
 			var singleFlag = false;
@@ -529,7 +542,6 @@ export class Explainer {
 				var ghostRightPx = boxLeft;
 				activity = "all";
 			} else {
-				// EasyCode is activated
 				var ghostTopPx = ghostTextPosition.top;
 				var ghostBottomPx = ghostTextPosition.bottom;
 				var ghostLeftPx = ghostTextPosition.left;
@@ -591,7 +603,14 @@ export class Explainer {
 				"activity": activity,
 				"acceptedCode": acceptedCode
 			};
-			this.records.push(newRecord);
+			const recordArray: string[] = [];
+			for (let key in newRecord) {
+				if (newRecord.hasOwnProperty(key)) {
+					// Using a type assertion to tell TypeScript that key is definitely a key of newRecord
+					recordArray.push(String(newRecord[key as keyof typeof newRecord]));
+				}
+			}
+			this.records.push(recordArray);
 		}
 	}
 
