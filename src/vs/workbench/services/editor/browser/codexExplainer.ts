@@ -153,18 +153,7 @@ export function matchLongText(text: string, longText: string) {
 	}
 }
 
-/* onTestChange = function() {
-	var key = window.event.keyCode;
-	if (key == 13) {
-		var prompt = document.getElementById("codeBlock").value.split("\n")[0],
-			numberSections = document.getElementById("summarySlide").value;
-			OpenaiFetchAPI(prompt, numberSections);
-	}
-} */
-
 export async function OpenaiFetchAPI(code: string, explainType: string, targetCode: number = 0) {
-	// var url = "https://api.openai.com/v1/completions";
-	// var bearer = 'Bearer ' + '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'
 	if (explainType == "multi") {
 		var splitCode = code.split("\n");
 		var prompt = "Please split the line of code I want explained, and explain any " +
@@ -373,34 +362,8 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 		messages: [{ role: 'user', content: promptSummary }],
 		model: 'gpt-4-1106-preview',
 		stream: true,
-	});/* .then(response => {
-		var data = response.choices[0].message.content;
-		if (!data) {
-			return "";
-		} else {
-			return data;
-		}
-	}) */
-	/* let returnSum = await fetch(url, {
-		method: 'POST',
-		headers: {
-			'Authorization': bearer,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			"model": "gpt-4-1106-preview",//davinci:ft-personal-2023-02-12-20-22-59
-			"prompt": promptSummary,
-			"max_tokens": 1000,
-			"temperature": 0.5,
-			"top_p": 0.5,
-			"n": 1,
-			"stream": true,
-			"logprobs": null
-		})
-	}); */
+	});
 
-	// const streamReader = returnSum.body?.pipeThrough(new TextDecoderStream()).getReader();
-	// read each JSON object from the stream as it is received
 	var eachSnippet = "",
 		lastChar = "",
 		lastExplain: [number, number, string] = [0, 0, ""];
@@ -411,7 +374,6 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 	placeholder.style.borderLeft = '1.5px solid white';
 	div.appendChild(placeholder);
 	animateDots(placeholder);
-	// while (true)
 	for await (const chunk of chatCompletion) {
 		if (chunk == null) continue;
 		var value = chunk.choices[0].delta.content;
@@ -434,40 +396,5 @@ export async function OpenaiStreamAPI(code: string, div: HTMLDivElement, numberS
 			eachSnippet += value;
 		}
 		lastChar = value;
-	}
-}
-
-export async function regenerateExplanation(code: string, text: string, div: HTMLDivElement) {
-	const prompt = "Regenerate the explanation for " + text + " in the below code snippet.\n" + code;
-	const apiUrl = "https://api.openai.com/v1/engines/davinci-codex/completions";
-	const headers = {
-		"Content-Type": "application/json",
-		"Authorization": `Bearer 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`,
-	};
-
-	const body = {
-		prompt: prompt,
-		max_tokens: 50,
-		n: 1,
-		stop: null,
-		temperature: 1,
-	};
-
-	try {
-		const response = await fetch(apiUrl, {
-			method: "POST",
-			headers: headers,
-			body: JSON.stringify(body),
-		});
-
-		if (!response.ok) {
-			throw new Error(`API request failed with status ${response.status}`);
-		}
-
-		const data = await response.json();
-		const generatedText = data.choices[0].text;
-		div.innerText = generatedText;
-	} catch (error) {
-		console.error("Error calling ChatGPT API:", error);
 	}
 }
