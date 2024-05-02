@@ -26,7 +26,7 @@ To get started with the project, follow these steps:
 1. Clone the repository to your local folder:
 
 ```
-git clone https://github.com/YanLitao/copilot_explainer.git
+git clone https://github.com/YanLitao/Ivie.git
 ```
 
 
