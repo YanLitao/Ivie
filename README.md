@@ -1,6 +1,6 @@
-# AI-assisted code understanding tool for Copilot
+# Ivie: Lightweight Anchored Explanations of Just-Generated Code
 
-Add a brief description of your project here.
+This is the GitHub repo for our [CHI 2024 paper](https://arxiv.org/pdf/2403.02491)
 
 ## Table of Contents
 
