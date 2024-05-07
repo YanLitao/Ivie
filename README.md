@@ -29,17 +29,9 @@ To get started with the project, follow these steps:
 git clone https://github.com/YanLitao/Ivie.git
 ```
 
+2. Install Node.js v16.18.1 from the [official website](https://nodejs.org/dist/v16.18.1/).
 
-2. Reset the repository to the specified commit:
-
-```
-git reset --hard 78b91ac8590295a297ac465dacbc98b3e02f752b
-```
-
-
-3. Install Node.js v16.18.1 from the [official website](https://nodejs.org/dist/v16.18.1/).
-
-4. Install Yarn by running:
+3. Install Yarn by running:
 
 ```
 npm install -g yarn
